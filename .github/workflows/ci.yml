@@ -84,6 +84,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build flake inside Nix container
         run: |
-          docker run --rm --volume "$PWD:/workspace" --workdir /workspace nixos/nix:2.31.2 \
+          docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
+            --env GIT_CONFIG_COUNT=1 \
+            --env GIT_CONFIG_KEY_0=safe.directory \
+            --env GIT_CONFIG_VALUE_0=/workspace \
+            nixos/nix:2.31.2 \
             nix --extra-experimental-features 'nix-command flakes' \
             build --no-write-lock-file --print-build-logs
