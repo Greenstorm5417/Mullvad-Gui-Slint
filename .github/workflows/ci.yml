@@ -68,6 +68,12 @@ jobs:
             --volume "$PWD/.ci-cache/cargo/registry:/usr/local/cargo/registry" \
             --volume "$PWD/.ci-cache/cargo/git:/usr/local/cargo/git" \
             "$CI_IMAGE" cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Prepare Rust cache for saving
+        if: always()
+        run: |
+          owner="$(id -u):$(id -g)"
+          [[ ! -e .ci-cache ]] || sudo chown --recursive "$owner" .ci-cache
+          [[ ! -e target ]] || sudo chown --recursive "$owner" target
 
   linux:
     name: Linux ${{ matrix.arch }}
@@ -124,6 +130,12 @@ jobs:
             dist/*.rpm
             dist/*.tar.gz
           if-no-files-found: error
+      - name: Prepare Rust cache for saving
+        if: always()
+        run: |
+          owner="$(id -u):$(id -g)"
+          [[ ! -e .ci-cache ]] || sudo chown --recursive "$owner" .ci-cache
+          [[ ! -e target ]] || sudo chown --recursive "$owner" target
 
   nix:
     name: Nix ${{ matrix.arch }}
