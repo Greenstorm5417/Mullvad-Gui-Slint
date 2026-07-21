@@ -32,7 +32,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Resolve version
         id: version
         env:
@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Resolve version
         id: version
         env:
