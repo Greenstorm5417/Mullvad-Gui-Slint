@@ -29,6 +29,7 @@ pub trait FeatureApi: Send + Sync {
     async fn devices(&self, account_number: String) -> Result<Vec<DeviceSummary>, String>;
     async fn remove_device(&self, account_number: String, device_id: String) -> Result<(), String>;
     async fn relay_locations(&self) -> Result<Vec<RelayLocation>, String>;
+    async fn select_automatic_relay(&self) -> Result<(), String>;
     async fn select_relay(&self, relay: RelayLocation) -> Result<(), String>;
     async fn split_tunnel_state(&self) -> Result<SplitTunnelState, String>;
     async fn add_split_tunnel_process(&self, process_id: i32) -> Result<(), String>;

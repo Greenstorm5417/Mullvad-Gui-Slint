@@ -8,7 +8,9 @@ RUN apt-get update \
         desktop-file-utils \
         file \
         libfuse2 \
-        libgtk-4-dev \
+        libfontconfig1-dev \
+        libfreetype6-dev \
+        libxkbcommon-dev \
         patchelf \
         pkg-config \
         rpm \

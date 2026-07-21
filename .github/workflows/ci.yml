@@ -13,7 +13,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  CI_IMAGE: mullvad-gtk-ci
+  CI_IMAGE: mullvad-gui-slint-ci
 
 jobs:
   checks:
@@ -52,11 +52,20 @@ jobs:
       - name: Check and build release binary
         run: |
           docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" \
-            bash -c 'cargo check --locked --all-targets --all-features && cargo build --locked --release'
+            bash -c 'cargo check --locked --all-targets --all-features && \
+              cargo build --locked --release && \
+              desktop-file-validate packaging/mullvad-gui-slint.desktop && \
+              ./scripts/package-linux.sh 0.1.0-ci ${{ matrix.arch }} && \
+              dpkg-deb --info dist/mullvad-gui-slint_0.1.0-ci_*.deb >/dev/null && \
+              rpm -qpl dist/*.rpm >/dev/null'
       - uses: actions/upload-artifact@v4
         with:
-          name: mullvad-gtk-linux-${{ matrix.arch }}
-          path: target/release/mullvad-gtk
+          name: mullvad-gui-slint-linux-${{ matrix.arch }}
+          path: |
+            target/release/mullvad-gui-slint
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
           if-no-files-found: error
 
   nix:

@@ -12,14 +12,14 @@ case "$architecture" in
     ;;
 esac
 
-appdir="$PWD/target/Mullvad-GTK.AppDir"
+appdir="$PWD/target/Mullvad-Gui-Slint.AppDir"
 tools="$PWD/target/appimage-tools"
 rm -rf "$appdir" "$tools"
 mkdir -p "$appdir" "$tools" dist
 DESTDIR="$appdir" PREFIX=/usr ./scripts/stage-linux.sh
-ln -s usr/bin/mullvad-gtk "$appdir/AppRun"
-cp packaging/mullvad-gtk.desktop "$appdir/mullvad-gtk.desktop"
-cp assets/images/logo-icon.svg "$appdir/mullvad-gtk.svg"
+ln -s usr/bin/mullvad-gui-slint "$appdir/AppRun"
+cp packaging/mullvad-gui-slint.desktop "$appdir/mullvad-gui-slint.desktop"
+cp assets/images/logo-icon.svg "$appdir/mullvad-gui-slint.svg"
 
 linuxdeploy="$tools/linuxdeploy-$appimage_arch.AppImage"
 plugin="$tools/linuxdeploy-plugin-appimage-$appimage_arch.AppImage"
@@ -32,10 +32,10 @@ curl --fail --location --retry 3 \
 chmod +x "$linuxdeploy" "$plugin"
 
 export APPIMAGE_EXTRACT_AND_RUN=1
-export OUTPUT="dist/Mullvad-GTK-${version}-${architecture}.AppImage"
+export OUTPUT="dist/Mullvad-Gui-Slint-${version}-${architecture}.AppImage"
 "$linuxdeploy" \
   --appdir "$appdir" \
-  --executable "$appdir/usr/bin/mullvad-gtk" \
-  --desktop-file "$appdir/mullvad-gtk.desktop" \
-  --icon-file "$appdir/mullvad-gtk.svg" \
+  --executable "$appdir/usr/bin/mullvad-gui-slint" \
+  --desktop-file "$appdir/mullvad-gui-slint.desktop" \
+  --icon-file "$appdir/mullvad-gui-slint.svg" \
   --output appimage

@@ -20,6 +20,7 @@ printf '%s\n' \
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends mullvad-vpn
+dpkg-query --show --showformat='Testing Mullvad package ${Version}\n' mullvad-vpn
 
 if [[ ! -c /dev/net/tun ]]; then
   mkdir -p /dev/net
@@ -35,7 +36,10 @@ for _ in $(seq 1 60); do
   kill -0 "$daemon_pid"
   sleep 1
 done
-[[ -S /var/run/mullvad-vpn ]]
+if [[ ! -S /var/run/mullvad-vpn ]]; then
+  echo "Mullvad daemon did not create /var/run/mullvad-vpn within 60 seconds" >&2
+  exit 1
+fi
 
 cargo test --locked --no-default-features --test controller_integration \
   -- --ignored --test-threads=1

@@ -1,9 +1,9 @@
 # Security policy
 
-Mullvad-GTK is an independent frontend and does not provide the VPN daemon.
+Mullvad-Gui-Slint is an independent frontend and does not provide the VPN daemon.
 Security reports about this repository should be submitted through GitHub's
 private vulnerability reporting for
-[`Greenstorm5417/Mullvad-GTK`](https://github.com/Greenstorm5417/Mullvad-GTK/security/advisories/new).
+[`Greenstorm5417/Mullvad-Gui-Slint`](https://github.com/Greenstorm5417/Mullvad-Gui-Slint/security/advisories/new).
 
 Do not include Mullvad account numbers, voucher codes, private keys, or other
 credentials in reports, logs, or public issues. Service-side and official daemon

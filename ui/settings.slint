@@ -1,0 +1,4949 @@
+// Settings surfaces ported from the Mullvad Electron client at the pinned upstream commit.
+import { ListView, ScrollView, TextEdit } from "std-widgets.slint";
+import { ThinScrollbar } from "scrollbar.slint";
+import "../assets/fonts/OpenSans-Regular.ttf";
+import "../assets/fonts/OpenSans-Semibold.ttf";
+import "../assets/fonts/OpenSans-Bold.ttf";
+import "../assets/fonts/SourceSansPro-SemiBold.ttf";
+import "../assets/fonts/SourceSansPro-Bold.ttf";
+
+export struct SettingsApplication {
+    name: string,
+    path: string,
+    icon: image,
+    warning: bool,
+}
+
+export struct ApiAccessMethodData {
+    id: string,
+    name: string,
+    enabled: bool,
+    in-use: bool,
+    custom: bool,
+    testing: bool,
+    test-result: int, // -1 unknown, 0 unreachable, 1 reachable
+    proxy-type: int,
+    server: string,
+    port: string,
+    username: string,
+    password: string,
+    cipher: string,
+}
+
+export struct LanguageData {
+    code: string,
+    name: string,
+    selected: bool,
+}
+
+export struct RelayOverrideData {
+    hostname: string,
+    ipv4: string,
+    ipv6: string,
+}
+
+global SettingsColors {
+    out property <color> white: #ffffff;
+    out property <color> white-80: #ffffffcc;
+    out property <color> white-60: #ffffff99;
+    out property <color> white-40: #ffffff66;
+    out property <color> white-20: #ffffff33;
+    out property <color> red: #e34039;
+    out property <color> red-80: #bb3c3b;
+    out property <color> red-40: #6a3540;
+    out property <color> green: #44ad4d;
+    out property <color> green-80: #3b944b;
+    out property <color> green-40: #2a6148;
+    out property <color> yellow: #ffd524;
+    out property <color> blue: #294d73;
+    out property <color> blue-20: #1c344e;
+    out property <color> blue-40: #1f3a57;
+    out property <color> blue-60: #234161;
+    out property <color> blue-80: #26476a;
+    out property <color> blue-hover: #3e5f81;
+    out property <color> blue-pressed: #54718f;
+    out property <color> white-on-dark-blue-5: #25394e;
+    out property <color> white-on-dark-blue-10: #304357;
+    out property <color> white-on-dark-blue-60: #a3abb5;
+    out property <color> dark-blue: #192e45;
+    out property <color> chalk: #f8f7f1;
+}
+
+component NavigationHeader inherits Rectangle {
+    in property <string> title;
+    in property <bool> title-visible: true;
+    // Pages opened directly from the main view ("show" transitions, e.g. Settings
+    // itself) close with a downward chevron; pages pushed from within a section
+    // (DAITA, Multihop, ...) go back with a leftward one.
+    in property <bool> close: false;
+    callback back;
+    height: 48px;
+    x: 0px;
+    y: 0px;
+    z: 100;
+    background: SettingsColors.dark-blue;
+    clip: false;
+
+    Rectangle {
+        z: 2;
+        x: 16px;
+        y: (root.height - 24px) / 2;
+        width: 24px;
+        height: 24px;
+        Image {
+            width: 24px;
+            height: 24px;
+            source: root.close ? @image-url("../assets/icons/icon-chevron-down-circle.svg") : @image-url("../assets/icons/icon-chevron-left-circle.svg");
+            image-fit: contain;
+            opacity: back-touch.pressed ? 1 : back-touch.has-hover ? 0.8 : 0.6;
+            animate opacity {
+                duration: 150ms;
+                easing: ease;
+            }
+        }
+
+        back-touch := TouchArea {
+            clicked => { root.back(); }
+        }
+    }
+
+    Text {
+        z: 1;
+        x: 56px;
+        y: (root.height - 24px) / 2;
+        width: parent.width - 112px;
+        height: 24px;
+        text: root.title;
+        opacity: root.title-visible ? 1 : 0;
+        color: SettingsColors.white;
+        font-family: "Source Sans Pro";
+        font-size: 18px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+        animate opacity {
+            duration: 250ms;
+            easing: ease-in-out;
+        }
+    }
+}
+
+component PageTitle inherits Text {
+    // Fixed 34px clipped the real glyph metrics of this font at 32px/bold (e.g.
+    // descenders in "settings") — size to content instead.
+    height: self.preferred-height;
+    color: SettingsColors.white;
+    font-family: "Source Sans Pro";
+    font-size: 32px;
+    font-weight: 700;
+    vertical-alignment: center;
+    overflow: elide;
+}
+
+component MullvadSwitch inherits Rectangle {
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+    width: 32px;
+    height: 20px;
+    border-width: 2px;
+    border-color: root.enabled ? SettingsColors.white-80 : SettingsColors.white-20;
+    border-radius: 10px;
+    background: transparent;
+
+    Rectangle {
+        // Upstream's `left: 2px` is measured from inside the 2px border (CSS
+        // absolute positioning uses the padding edge), so the true offset
+        // from the track's outer edge is 2+2=4px unchecked, 2+2+12=16px checked.
+        private property <length> base-x: root.checked ? 16px : 4px;
+        private property <length> dot-size: touch.has-hover && root.enabled ? 14px : 12px;
+        x: self.base-x - (self.dot-size - 12px) / 2;
+        y: (root.height - self.dot-size) / 2;
+        width: self.dot-size;
+        height: self.dot-size;
+        border-radius: self.width / 2;
+        background: root.checked
+            ? (root.enabled ? SettingsColors.green : SettingsColors.green-40)
+            : (root.enabled ? SettingsColors.red : SettingsColors.red-40);
+        animate x {
+            duration: 100ms;
+            easing: ease-out;
+        }
+        animate width {
+            duration: 100ms;
+            easing: ease-out;
+        }
+        animate height {
+            duration: 100ms;
+            easing: ease-out;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+}
+
+component SettingsRow inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <bool> navigation: false;
+    in property <bool> external: false;
+    in property <bool> solo: true;
+    in property <bool> enabled: true;
+    callback clicked;
+    height: 48px;
+    border-radius: root.solo ? 16px : 0px;
+    background: !root.enabled ? #1f3a57
+        : touch.pressed ? SettingsColors.blue-pressed
+        : touch.has-hover ? SettingsColors.blue-hover
+        : SettingsColors.blue;
+
+    Text {
+        x: 16px;
+        y: 14px;
+        width: parent.width - (root.navigation ? 64px : 32px) - (root.value == "" ? 0px : 80px);
+        height: 20px;
+        text: root.label;
+        color: root.enabled ? SettingsColors.white : SettingsColors.white-40;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    Text {
+        visible: root.value != "";
+        x: parent.width - (root.navigation ? 128px : 96px);
+        y: 15px;
+        width: root.navigation ? 80px : 80px;
+        height: 18px;
+        text: root.value;
+        color: root.enabled ? SettingsColors.white-60 : SettingsColors.white-40;
+        font-family: "Open Sans";
+        font-size: 12px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    Image {
+        visible: root.navigation;
+        x: parent.width - 36px;
+        y: 12px;
+        width: 24px;
+        height: 24px;
+        source: root.external ? @image-url("../assets/icons/icon-external.svg") : @image-url("../assets/icons/icon-chevron-right.svg");
+        image-fit: contain;
+        opacity: root.enabled ? 1 : 0.4;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+component ToggleRow inherits Rectangle {
+    in property <string> label;
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    in property <bool> solo: true;
+    callback toggled(bool);
+    height: 48px;
+    border-radius: root.solo ? 16px : 0px;
+    background: touch.pressed ? SettingsColors.blue-pressed
+        : touch.has-hover ? SettingsColors.blue-hover
+        : SettingsColors.blue;
+    Text {
+        x: 16px;
+        y: 14px;
+        width: parent.width - 72px;
+        height: 20px;
+        text: root.label;
+        color: root.enabled ? SettingsColors.white : SettingsColors.white-40;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    MullvadSwitch {
+        x: parent.width - 48px;
+        y: 14px;
+        checked: root.checked;
+        enabled: root.enabled;
+        toggled(value) => {
+            root.checked = value;
+            root.toggled(value);
+        }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+}
+
+component ActionButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> success: false;
+    in property <bool> destructive: false;
+    in property <bool> enabled: true;
+    callback clicked;
+    height: 32px;
+    border-radius: 4px;
+    background: root.destructive
+        ? (touch.pressed ? SettingsColors.red-40 : touch.has-hover ? SettingsColors.red-80 : SettingsColors.red)
+        : root.success
+        ? (touch.pressed ? SettingsColors.green-40 : touch.has-hover ? SettingsColors.green-80 : SettingsColors.green)
+        : (touch.pressed ? #1f3a57 : touch.has-hover ? #234161 : SettingsColors.blue);
+    opacity: root.enabled ? 1 : 0.4;
+    Text {
+        // Upstream's modern Button.Text is "bodySmallSemibold" (Open Sans,
+        // 14px, 600) — used pervasively (dialogs, Cancel/Delete/Close, etc),
+        // not the older Source-Sans-Pro/18px "buttonText" mixin from the Cell system.
+        text: root.text;
+        color: SettingsColors.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+component BodyText inherits Text {
+    color: SettingsColors.white-60;
+    font-family: "Open Sans";
+    font-size: 12px;
+    wrap: word-wrap;
+}
+
+component SettingsTextField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> enabled: true;
+    in property <bool> invalid: false;
+    in property <bool> password: false;
+    callback edited(string);
+    callback accepted(string);
+    height: 36px;
+    border-radius: 4px;
+    border-width: input.has-focus ? 2px : 1px;
+    border-color: root.invalid ? #eb5d40 : input.has-focus ? SettingsColors.chalk : transparent;
+    background: #1f3a57;
+    opacity: root.enabled ? 1 : 0.6;
+    Text {
+        visible: input.text == "";
+        x: 8px;
+        width: parent.width - 16px;
+        height: parent.height;
+        text: root.placeholder;
+        color: SettingsColors.white-60;
+        font-family: "Open Sans";
+        font-size: 14px;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    input := TextInput {
+        x: 8px;
+        width: parent.width - 16px;
+        height: parent.height;
+        text: root.text;
+        color: SettingsColors.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        enabled: root.enabled;
+        vertical-alignment: center;
+        single-line: true;
+        input-type: root.password ? InputType.password : InputType.text;
+        edited => { root.text = self.text; root.edited(self.text); }
+        accepted => { root.accepted(self.text); }
+    }
+}
+
+component RadioRow inherits Rectangle {
+    in property <string> label;
+    in property <string> detail;
+    in property <bool> selected;
+    callback clicked;
+    height: root.detail == "" ? 48px : 62px;
+    // Options nested inside a listbox card are "level 1" upstream and use the
+    // darker blue-60 base (the header row above stays the plain blue).
+    background: touch.pressed ? SettingsColors.blue-pressed : touch.has-hover ? SettingsColors.blue-hover : SettingsColors.blue-60;
+    Text {
+        x: 16px + (root.selected ? 32px : 0px);
+        y: root.detail == "" ? 14px : 10px;
+        width: parent.width - self.x - 16px;
+        height: 20px;
+        text: root.label;
+        color: root.selected ? SettingsColors.green : SettingsColors.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+        animate x {
+            duration: 150ms;
+            easing: ease-out;
+        }
+    }
+
+    Image {
+        x: root.selected ? 16px : 0px;
+        y: root.detail == "" ? 12px : 10px;
+        width: 24px;
+        height: 24px;
+        source: @image-url("../assets/icons/icon-checkmark.svg");
+        image-fit: contain;
+        opacity: root.selected ? 1 : 0;
+        animate x {
+            duration: 150ms;
+            easing: ease-out;
+        }
+        animate opacity {
+            duration: 150ms;
+            easing: ease-in;
+        }
+    }
+
+    Text {
+        visible: root.detail != "";
+        x: 16px + (root.selected ? 32px : 0px);
+        y: 32px;
+        width: parent.width - self.x - 16px;
+        height: 18px;
+        text: root.detail;
+        color: SettingsColors.white-60;
+        font-family: "Open Sans";
+        font-size: 12px;
+        overflow: elide;
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component DnsBlockerAccordion inherits Rectangle {
+    in-out property <bool> expanded;
+    in property <bool> disabled;
+    in-out property <bool> ads;
+    in-out property <bool> trackers;
+    in-out property <bool> malware;
+    in-out property <bool> gambling;
+    in-out property <bool> adult-content;
+    in-out property <bool> social-media;
+    callback blocker-changed(string, bool);
+    callback malware-info-clicked;
+    height: root.expanded && !root.disabled ? 342px : 48px;
+    clip: true;
+    animate height {
+        duration: 150ms;
+        easing: ease-out;
+    }
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: 48px;
+        border-radius: root.expanded ? 16px : 16px;
+        background: header-touch.pressed ? SettingsColors.blue-pressed : header-touch.has-hover ? SettingsColors.blue-hover : root.disabled ? #1f3a57 : SettingsColors.blue;
+        Text {
+            x: 16px;
+            y: 14px;
+            width: parent.width - 64px;
+            height: 20px;
+            text: "DNS content blockers";
+            color: root.disabled ? SettingsColors.white-40 : SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        Image {
+            x: parent.width - 36px;
+            y: 12px;
+            width: 24px;
+            height: 24px;
+            source: root.expanded ? @image-url("../assets/icons/icon-chevron-up.svg") : @image-url("../assets/icons/icon-chevron-down.svg");
+            image-fit: contain;
+            opacity: root.disabled ? 0.4 : 0.8;
+        }
+
+        header-touch := TouchArea {
+            enabled: !root.disabled;
+            clicked => { root.expanded = !root.expanded; }
+        }
+    }
+
+    ToggleRow {
+        x: 16px;
+        y: 49px;
+        width: parent.width - 16px;
+        label: "Ads";
+        checked: root.ads;
+        solo: false;
+        toggled(v) => { root.ads = v; root.blocker-changed("block-ads", v); }
+    }
+
+    ToggleRow {
+        x: 16px;
+        y: 98px;
+        width: parent.width - 16px;
+        label: "Trackers";
+        checked: root.trackers;
+        solo: false;
+        toggled(v) => { root.trackers = v; root.blocker-changed("block-trackers", v); }
+    }
+
+    ToggleRow {
+        x: 16px;
+        y: 147px;
+        width: parent.width - 16px;
+        label: "Malware";
+        checked: root.malware;
+        solo: false;
+        toggled(v) => { root.malware = v; root.blocker-changed("block-malware", v); }
+    }
+
+    Rectangle {
+        x: parent.width - 88px;
+        y: 159px;
+        width: 24px;
+        height: 24px;
+        Image {
+            width: 24px;
+            height: 24px;
+            source: @image-url("../assets/icons/icon-info-circle.svg");
+            image-fit: contain;
+            opacity: malware-info-touch.has-hover ? 1 : 0.7;
+        }
+
+        malware-info-touch := TouchArea {
+            clicked => { root.malware-info-clicked(); }
+        }
+    }
+
+    ToggleRow {
+        x: 16px;
+        y: 196px;
+        width: parent.width - 16px;
+        label: "Gambling";
+        checked: root.gambling;
+        solo: false;
+        toggled(v) => { root.gambling = v; root.blocker-changed("block-gambling", v); }
+    }
+
+    ToggleRow {
+        x: 16px;
+        y: 245px;
+        width: parent.width - 16px;
+        label: "Adult content";
+        checked: root.adult-content;
+        solo: false;
+        toggled(v) => { root.adult-content = v; root.blocker-changed("block-adult-content", v); }
+    }
+
+    ToggleRow {
+        x: 16px;
+        y: 294px;
+        width: parent.width - 16px;
+        label: "Social media";
+        checked: root.social-media;
+        solo: false;
+        toggled(v) => { root.social-media = v; root.blocker-changed("block-social-media", v); }
+    }
+}
+
+export component SettingsLanding inherits Rectangle {
+    in property <bool> daemon-available: true;
+    in property <bool> logged-in: true;
+    in property <bool> daita-enabled;
+    in property <string> multihop-value: "When needed";
+    in property <string> version;
+    in property <bool> update-available;
+    in property <bool> connected;
+    callback back;
+    callback navigate(int);
+    callback quit;
+    background: SettingsColors.dark-blue;
+
+    Rectangle {
+        x: 0;
+        y: 48px;
+        width: parent.width;
+        height: parent.height - 48px;
+        clip: true;
+        settings-flick := Flickable {
+            width: parent.width - 10px;
+            height: parent.height;
+            viewport-width: self.width;
+            viewport-height: root.logged-in && root.daemon-available ? 516px : 372px;
+            Rectangle {
+                width: parent.width;
+                height: root.logged-in && root.daemon-available ? 516px : 372px;
+                Rectangle {
+                    x: 16px;
+                    y: 0;
+                    width: parent.width - 32px;
+                    height: root.logged-in && root.daemon-available ? 195px : 48px;
+                    border-radius: 16px;
+                    clip: true;
+                    background: SettingsColors.dark-blue;
+                    SettingsRow {
+                        y: 0;
+                        width: parent.width;
+                        label: root.logged-in && root.daemon-available ? "DAITA" : "User interface settings";
+                        value: root.logged-in && root.daemon-available ? (root.daita-enabled ? "On" : "Off") : "";
+                        navigation: true;
+                        solo: false;
+                        clicked => { root.navigate(root.logged-in && root.daemon-available ? 1 : 4); }
+                    }
+
+                    SettingsRow {
+                        visible: root.logged-in && root.daemon-available;
+                        y: 49px;
+                        width: parent.width;
+                        label: "Multihop";
+                        value: root.multihop-value;
+                        navigation: true;
+                        solo: false;
+                        clicked => { root.navigate(2); }
+                    }
+
+                    SettingsRow {
+                        visible: root.logged-in && root.daemon-available;
+                        y: 98px;
+                        width: parent.width;
+                        label: "VPN settings";
+                        navigation: true;
+                        solo: false;
+                        clicked => { root.navigate(3); }
+                    }
+
+                    SettingsRow {
+                        visible: root.logged-in && root.daemon-available;
+                        y: 147px;
+                        width: parent.width;
+                        label: "User interface settings";
+                        navigation: true;
+                        solo: false;
+                        clicked => { root.navigate(4); }
+                    }
+                }
+
+                SettingsRow {
+                    visible: root.logged-in && root.daemon-available;
+                    x: 16px;
+                    y: 211px;
+                    width: parent.width - 32px;
+                    label: "Split tunneling";
+                    navigation: true;
+                    clicked => { root.navigate(5); }
+                }
+
+                SettingsRow {
+                    x: 16px;
+                    y: root.logged-in && root.daemon-available ? 275px : 64px;
+                    width: parent.width - 32px;
+                    label: "API access";
+                    navigation: true;
+                    clicked => { root.navigate(8); }
+                }
+
+                Rectangle {
+                    x: 16px;
+                    y: root.logged-in && root.daemon-available ? 339px : 128px;
+                    width: parent.width - 32px;
+                    height: 97px;
+                    border-radius: 16px;
+                    clip: true;
+                    background: SettingsColors.dark-blue;
+                    SettingsRow {
+                        x: 0;
+                        y: 0;
+                        width: parent.width;
+                        label: "Support";
+                        navigation: true;
+                        solo: false;
+                        clicked => { root.navigate(6); }
+                    }
+
+                    SettingsRow {
+                        y: 49px;
+                        width: parent.width;
+                        label: "App info";
+                        value: root.version;
+                        navigation: true;
+                        solo: false;
+                        clicked => { root.navigate(7); }
+                    }
+
+                    Rectangle {
+                        visible: root.update-available;
+                        x: parent.width - 64px;
+                        y: 68px;
+                        width: 8px;
+                        height: 8px;
+                        border-radius: 4px;
+                        background: SettingsColors.yellow;
+                    }
+                }
+
+                ActionButton {
+                    x: 16px;
+                    y: root.logged-in && root.daemon-available ? 460px : 249px;
+                    width: parent.width - 32px;
+                    text: root.connected ? "Disconnect & quit" : "Quit";
+                    destructive: true;
+                    clicked => { root.quit(); }
+                }
+            }
+        }
+
+        ThinScrollbar {
+            x: parent.width - 12px;
+            y: 0;
+            width: 12px;
+            height: parent.height;
+            content-height: settings-flick.viewport-height;
+            visible-height: settings-flick.height;
+            scroll-y <=> settings-flick.viewport-y;
+        }
+    }
+
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "Settings";
+        close: true;
+        back => { root.back(); }
+    }
+}
+
+export component DaitaSettings inherits Rectangle {
+    in-out property <bool> enabled;
+    in-out property <int> slide;
+    private property <length> slide-width: 288px;
+    callback back;
+    callback enabled-changed(bool);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "DAITA";
+        title-visible: -daita-scroll.viewport-y > 34px;
+        back => { root.back(); }
+    }
+    // Paragraph 1 of each slide is semibold (upstream's "labelTinySemiBold" variant),
+    // paragraphs 2/3 are regular weight — 3 separate Text elements (not one blob)
+    // so each can size itself via preferred-height instead of a guessed constant.
+    //
+    // Upstream's exact structure (DaitaSettingsView.tsx + Carousel.tsx):
+    //   Carousel = Flex(column, gap="medium"/16px): [Slides, Controls]
+    //     Slides = Gallery = Flex(column, gap="small"/8px): [Image, TextGroup]
+    //       TextGroup = Flex(column, gap="medium"/16px): [Text, Text, Text]
+    //     Controls = grid, row height = tallest child = the prev/next
+    //       IconButtons at "medium" icon size (24px) — not the 8px dots.
+    //   FlexColumn(gap="large"/24px): [Carousel, FlexColumn(no gap): [DaitaSetting]]
+    // So: para3-bottom + 16 (Carousel's own gap) = controls row top;
+    //     controls row top + 24 (row height) + 24 (large gap) = toggle row top.
+    private property <length> daita-dots-y: daita-para3.y + daita-para3.preferred-height + 16px;
+    private property <length> daita-toggle-y: root.daita-dots-y + 24px + 24px;
+    daita-scroll := ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 0;
+        y: 48px;
+        width: parent.width;
+        height: parent.height - 48px;
+        viewport-width: self.width;
+        viewport-height: root.daita-toggle-y + 48px + 16px;
+        PageTitle {
+            x: 16px;
+            y: 0;
+            width: parent.width - 32px;
+            text: "DAITA";
+        }
+        // The illustration assets are natively 288x90 (not square) — a taller
+        // container just leaves empty top/bottom padding via image-fit:contain.
+        daita-carousel := Flickable {
+            x: 16px;
+            y: 50px;
+            width: root.slide-width;
+            height: 90px;
+            viewport-width: root.slide-width * 2;
+            interactive: true;
+            animate viewport-x {
+                duration: 200ms;
+                easing: ease-out;
+            }
+            flicked => {
+                root.slide = -self.viewport-x > root.slide-width / 2 ? 1 : 0;
+                self.viewport-x = -root.slide * root.slide-width;
+            }
+            Image {
+                x: 0;
+                y: 0;
+                width: root.slide-width;
+                height: 90px;
+                image-fit: contain;
+                source: @image-url("../assets/images/daita-off-illustration.svg");
+            }
+
+            Image {
+                x: root.slide-width;
+                y: 0;
+                width: root.slide-width;
+                height: 90px;
+                image-fit: contain;
+                source: @image-url("../assets/images/daita-on-illustration.svg");
+            }
+        }
+
+        daita-para1 := BodyText {
+            x: 16px;
+            y: 148px;
+            width: parent.width - 32px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            font-weight: 600;
+            text: root.slide == 0 ? "Attention: This increases network traffic and will also negatively affect speed, latency, and battery usage. Use with caution on limited plans." : "If an observer monitors these data packets, DAITA makes it significantly harder for them to identify which websites you are visiting or with whom you are communicating.";
+        }
+
+        daita-para2 := BodyText {
+            x: 16px;
+            y: daita-para1.y + daita-para1.preferred-height + 16px;
+            width: parent.width - 32px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: root.slide == 0 ? "DAITA (Defence against AI-guided Traffic Analysis) hides patterns in your encrypted VPN traffic." : "DAITA does this by carefully adding network noise and making all network packets the same size.";
+        }
+
+        daita-para3 := BodyText {
+            x: 16px;
+            y: daita-para2.y + daita-para2.preferred-height + 16px;
+            width: parent.width - 32px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: root.slide == 0 ? "By using sophisticated AI it’s possible to analyze the traffic of data packets going in and out of your device (even if the traffic is encrypted)." : "Not all our servers are DAITA-enabled. Therefore, we use multihop automatically to enable DAITA with any server.";
+        }
+
+        Rectangle {
+            x: 16px;
+            y: root.daita-dots-y;
+            width: parent.width - 32px;
+            height: 24px;
+            background: transparent;
+            Rectangle {
+                x: parent.width / 2 - 4px - self.width;
+                y: 8px;
+                width: root.slide == 0 ? 24px : 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: root.slide == 0 ? SettingsColors.white : (dot0-touch.has-hover ? SettingsColors.white-60 : SettingsColors.white-20);
+                animate width, background {
+                    duration: 150ms;
+                    easing: ease;
+                }
+                dot0-touch := TouchArea {
+                    enabled: root.slide != 0;
+                    clicked => { root.slide = 0; daita-carousel.viewport-x = 0px; }
+                }
+            }
+
+            Rectangle {
+                x: parent.width / 2 + 4px;
+                y: 8px;
+                width: root.slide == 1 ? 24px : 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: root.slide == 1 ? SettingsColors.white : (dot1-touch.has-hover ? SettingsColors.white-60 : SettingsColors.white-20);
+                animate width, background {
+                    duration: 150ms;
+                    easing: ease;
+                }
+                dot1-touch := TouchArea {
+                    enabled: root.slide != 1;
+                    clicked => { root.slide = 1; daita-carousel.viewport-x = -root.slide-width; }
+                }
+            }
+
+            Image {
+                x: parent.width - 64px;
+                y: 0px;
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-chevron-left.svg");
+                image-fit: contain;
+                opacity: root.slide == 0 ? 0.3 : (prev-touch.has-hover ? 1 : 0.7);
+                animate opacity {
+                    duration: 150ms;
+                    easing: ease;
+                }
+                prev-touch := TouchArea {
+                    enabled: root.slide > 0;
+                    clicked => { root.slide -= 1; daita-carousel.viewport-x = -root.slide * root.slide-width; }
+                }
+            }
+
+            Image {
+                x: parent.width - 32px;
+                y: 0px;
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-chevron-right.svg");
+                image-fit: contain;
+                opacity: root.slide == 1 ? 0.3 : (next-touch.has-hover ? 1 : 0.7);
+                animate opacity {
+                    duration: 150ms;
+                    easing: ease;
+                }
+                next-touch := TouchArea {
+                    enabled: root.slide < 1;
+                    clicked => { root.slide += 1; daita-carousel.viewport-x = -root.slide * root.slide-width; }
+                }
+            }
+        }
+
+        ToggleRow {
+            x: 16px;
+            y: root.daita-toggle-y;
+            width: parent.width - 32px;
+            label: "Enable";
+            checked: root.enabled;
+            toggled(value) => { root.enabled = value; root.enabled-changed(value); }
+        }
+    }
+
+    ThinScrollbar {
+        x: parent.width - 12px;
+        y: 48px;
+        width: 12px;
+        height: parent.height - 48px;
+        content-height: daita-scroll.viewport-height;
+        visible-height: daita-scroll.visible-height;
+        scroll-y <=> daita-scroll.viewport-y;
+    }
+}
+
+export component MultihopSettings inherits Rectangle {
+    in-out property <int> mode; // 0: when needed, 1: always, 2: never
+    callback back;
+    callback mode-changed(int);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "Multihop";
+        title-visible: -multihop-scroll.viewport-y > 34px;
+        back => { root.back(); }
+    }
+
+    multihop-scroll := ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 0;
+        y: 48px;
+        width: parent.width;
+        height: parent.height - 48px;
+        viewport-width: self.width;
+        viewport-height: multihop-card.y + 195px + 16px;
+        PageTitle {
+            x: 16px;
+            y: 0;
+            width: parent.width - 32px;
+            text: "Multihop";
+        }
+        // Illustration is natively 288x90, and width-32 here is also 288 (native
+        // resolution, no scaling) — height must be 90 to match, not 80.
+        Image {
+            x: 16px;
+            y: 50px;
+            width: parent.width - 32px;
+            height: 90px;
+            source: @image-url("../assets/images/multihop-illustration.svg");
+            image-fit: contain;
+        }
+
+        multihop-desc := BodyText {
+            x: 16px;
+            y: 148px;
+            width: parent.width - 32px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: "Multihop routes your traffic into one WireGuard server and out another, making it harder to trace. This results in increased latency but increases anonymity online.";
+        }
+
+        multihop-card := Rectangle {
+            x: 16px;
+            y: multihop-desc.y + multihop-desc.preferred-height + 26px;
+            width: parent.width - 32px;
+            height: 195px;
+            border-radius: 16px;
+            clip: true;
+            background: SettingsColors.dark-blue;
+            Rectangle {
+                y: 0;
+                width: parent.width;
+                height: 48px;
+                background: SettingsColors.blue;
+                Text {
+                    x: 16px;
+                    width: parent.width - 32px;
+                    height: parent.height;
+                    text: "Mode";
+                    color: SettingsColors.white;
+                    font-family: "Open Sans";
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+
+            RadioRow {
+                y: 49px;
+                width: parent.width;
+                label: "When needed";
+                selected: root.mode == 0;
+                clicked => { root.mode = 0; root.mode-changed(0); }
+            }
+
+            RadioRow {
+                y: 98px;
+                width: parent.width;
+                label: "Always";
+                selected: root.mode == 1;
+                clicked => { root.mode = 1; root.mode-changed(1); }
+            }
+
+            RadioRow {
+                y: 147px;
+                width: parent.width;
+                label: "Never";
+                selected: root.mode == 2;
+                clicked => { root.mode = 2; root.mode-changed(2); }
+            }
+        }
+    }
+
+    ThinScrollbar {
+        x: parent.width - 12px;
+        y: 48px;
+        width: 12px;
+        height: parent.height - 48px;
+        content-height: multihop-scroll.viewport-height;
+        visible-height: multihop-scroll.visible-height;
+        scroll-y <=> multihop-scroll.viewport-y;
+    }
+}
+
+export component VpnSettings inherits Rectangle {
+    in-out property <bool> auto-start;
+    in-out property <bool> auto-connect;
+    in-out property <bool> allow-lan;
+    in-out property <bool> block-ads;
+    in-out property <bool> block-trackers;
+    in-out property <bool> block-malware;
+    in-out property <bool> block-gambling;
+    in-out property <bool> block-adult-content;
+    in-out property <bool> block-social-media;
+    in-out property <bool> custom-dns;
+    in-out property <bool> ipv6;
+    in-out property <bool> lockdown;
+    in-out property <bool> quantum-resistant;
+    in-out property <int> ip-version-mode; // 0 automatic, 1 IPv4, 2 IPv6
+    in-out property <string> mtu-value;
+    in property <bool> mtu-invalid;
+    in-out property <int> obfuscation-method; // 0 auto,1 WG port,2 LWO,3 QUIC,4 Shadowsocks,5 UDP-over-TCP,6 none
+    in property <[string]> dns-addresses;
+    in-out property <string> new-dns-address;
+    in property <bool> dns-address-invalid;
+    callback back;
+    callback setting-changed(string, bool);
+    callback open-anti-censorship;
+    callback ip-version-changed(int);
+    callback mtu-submitted(string);
+    callback open-overrides;
+    callback dns-add(string);
+    callback dns-edit(int, string);
+    callback dns-remove(int);
+    private property <bool> dns-blockers-open: false;
+    private property <bool> dns-input-visible: false;
+    private property <bool> any-dns-blocker: root.block-ads || root.block-trackers || root.block-malware || root.block-gambling || root.block-adult-content || root.block-social-media;
+    private property <length> blocker-extra: root.dns-blockers-open ? 294px : 0px;
+    // Inline DNS server list + "add a server" row, shown while custom DNS is enabled.
+    // 1px seam (toggle->list) + one 48px row per address (each with a 1px seam below it) + the 48px "Add a server" row.
+    private property <length> dns-list-extra: root.custom-dns ? 1px + root.dns-addresses.length * 49px + 48px : 0px;
+    // ---- Running Y-cursor for the scroll content, built from real spacing tokens
+    // (medium=16px between cards, small=8px between the two DNS cards, tiny=4px
+    // between a card and its footer text) instead of ad-hoc pixel guesses.
+    private property <length> y-card1: 50px; // title(34) + gap-medium(16)
+    private property <length> card1-height: 97px; // auto-start(48) + auto-connect(49)
+    private property <length> y-autoconnect-footer: root.y-card1 + root.card1-height + 4px;
+    private property <length> y-allow-lan: autoconnect-footer.y + autoconnect-footer.preferred-height + 17px;
+    private property <length> y-blocker-card: root.y-allow-lan + 48px + 16px;
+    private property <length> blocker-card-height: 48px + root.blocker-extra;
+    private property <length> y-blocker-footer: root.y-blocker-card + root.blocker-card-height + 4px;
+    private property <length> y-customdns-card: root.custom-dns ? (blocker-footer.y + blocker-footer.preferred-height + 7px) : (root.y-blocker-footer + 7px);
+    private property <length> customdns-card-height: 48px + root.dns-list-extra + 4px + customdns-footer.preferred-height;
+    private property <length> y-ipv6: root.y-customdns-card + root.customdns-card-height + 16px;
+    private property <length> y-ipv6-footer: root.y-ipv6 + 48px + 4px;
+    private property <length> y-killswitch-card: ipv6-footer.y + ipv6-footer.preferred-height + 16px;
+    private property <length> y-anticensorship: root.y-killswitch-card + 97px + 16px;
+    private property <length> y-quantum: root.y-anticensorship + 48px + 16px;
+    private property <length> y-ipversion: root.y-quantum + 48px + 16px;
+    private property <length> y-mtu: root.y-ipversion + 195px + 16px;
+    private property <length> y-mtu-footer: root.y-mtu + 48px + 4px;
+    private property <length> y-ipoverride: mtu-footer.y + mtu-footer.preferred-height + 16px;
+    private property <bool> lan-info-open: false;
+    private property <bool> dns-blocker-info-open: false;
+    private property <bool> malware-info-open: false;
+    private property <bool> ipv6-info-open: false;
+    private property <bool> kill-switch-info-open: false;
+    private property <bool> lockdown-info-open: false;
+    private property <bool> quantum-info-open: false;
+    private property <bool> ip-version-info-open: false;
+    private property <string> obfuscation-label: root.obfuscation-method == 1 ? "WireGuard port"
+        : root.obfuscation-method == 2 ? "LWO"
+        : root.obfuscation-method == 3 ? "QUIC"
+        : root.obfuscation-method == 4 ? "Shadowsocks"
+        : root.obfuscation-method == 5 ? "UDP-over-TCP"
+        : root.obfuscation-method == 6 ? "Off"
+        : "Automatic";
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "VPN settings";
+        title-visible: -vpn-scroll.viewport-y > 34px;
+        back => { root.back(); }
+    }
+
+    vpn-scroll := ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 0;
+        y: 48px;
+        width: parent.width;
+        height: parent.height - 48px;
+        viewport-width: self.width;
+        viewport-height: root.y-ipoverride + 48px + 16px;
+        PageTitle {
+            x: 16px;
+            y: 0;
+            width: parent.width - 32px;
+            text: "VPN settings";
+        }
+
+        Rectangle {
+            x: 16px;
+            y: root.y-card1;
+            width: parent.width - 32px;
+            height: root.card1-height;
+            border-radius: 16px;
+            clip: true;
+            background: SettingsColors.dark-blue;
+            ToggleRow {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                label: "Launch app on start-up";
+                checked: root.auto-start;
+                solo: false;
+                toggled(v) => { root.auto-start = v; root.setting-changed("auto-start", v); }
+            }
+
+            ToggleRow {
+                y: 49px;
+                width: parent.width;
+                label: "Auto-connect";
+                checked: root.auto-connect;
+                solo: false;
+                toggled(v) => { root.auto-connect = v; root.setting-changed("auto-connect", v); }
+            }
+        }
+
+        autoconnect-footer := BodyText {
+            x: 32px;
+            y: root.y-autoconnect-footer;
+            width: parent.width - 64px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: "Automatically connect to a server when the app launches.";
+        }
+
+        ToggleRow {
+            x: 16px;
+            y: root.y-allow-lan;
+            width: parent.width - 32px;
+            label: "Local network sharing";
+            checked: root.allow-lan;
+            toggled(v) => { root.allow-lan = v; root.setting-changed("allow-lan", v); }
+        }
+
+        Rectangle {
+            x: parent.width - 96px;
+            y: root.y-allow-lan + 12px;
+            width: 24px;
+            height: 24px;
+            Image {
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-info-circle.svg");
+                image-fit: contain;
+                opacity: lan-info-touch.has-hover ? 1 : 0.7;
+            }
+
+            lan-info-touch := TouchArea {
+                clicked => { root.lan-info-open = true; }
+            }
+        }
+
+        DnsBlockerAccordion {
+            x: 16px;
+            y: root.y-blocker-card;
+            width: parent.width - 32px;
+            expanded <=> root.dns-blockers-open;
+            disabled: root.custom-dns;
+            ads <=> root.block-ads;
+            trackers <=> root.block-trackers;
+            malware <=> root.block-malware;
+            gambling <=> root.block-gambling;
+            adult-content <=> root.block-adult-content;
+            social-media <=> root.block-social-media;
+            blocker-changed(name, value) => { root.setting-changed(name, value); }
+            malware-info-clicked => { root.malware-info-open = true; }
+        }
+
+        Rectangle {
+            x: parent.width - 88px;
+            y: root.y-blocker-card + 12px;
+            width: 24px;
+            height: 24px;
+            Image {
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-info-circle.svg");
+                image-fit: contain;
+                opacity: dns-blocker-info-touch.has-hover ? 1 : 0.7;
+            }
+
+            dns-blocker-info-touch := TouchArea {
+                clicked => { root.dns-blocker-info-open = true; }
+            }
+        }
+
+        blocker-footer := BodyText {
+            visible: root.custom-dns;
+            x: 32px;
+            y: root.y-blocker-footer;
+            width: parent.width - 64px;
+            wrap: word-wrap;
+            height: root.custom-dns ? self.preferred-height : 0px;
+            text: "Disable \"Use custom DNS server\" below to activate these settings.";
+        }
+        // Inline "use custom DNS server" accordion: matches upstream's SettingsAccordion —
+        // the address list and "Add a server" row live directly on this page, in the same
+        // rounded card as the toggle, not behind a navigation chevron to a separate screen.
+        Rectangle {
+            x: 16px;
+            y: root.y-customdns-card;
+            width: parent.width - 32px;
+            height: 48px + root.dns-list-extra;
+            border-radius: 16px;
+            clip: true;
+            background: SettingsColors.dark-blue;
+            ToggleRow {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                label: "Use custom DNS server";
+                checked: root.custom-dns;
+                enabled: !root.any-dns-blocker;
+                solo: false;
+                toggled(v) => { root.custom-dns = v; root.setting-changed("custom-dns", v); }
+            }
+
+            if root.custom-dns: Rectangle {
+                y: 49px;
+                width: parent.width;
+                height: root.dns-list-extra - 1px;
+                for address[index] in root.dns-addresses: Rectangle {
+                    y: index * 49px;
+                    width: parent.width;
+                    height: 48px;
+                    background: dns-row-touch.has-hover ? SettingsColors.blue-80 : SettingsColors.blue-40;
+                    SettingsTextField {
+                        x: 40px;
+                        y: 6px;
+                        width: parent.width - 88px;
+                        text: address;
+                        accepted(value) => { root.dns-edit(index, value); }
+                    }
+
+                    dns-row-touch := TouchArea { }
+
+                    Rectangle {
+                        x: parent.width - 40px;
+                        y: 8px;
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: transparent;
+                        Image {
+                            x: 4px;
+                            y: 4px;
+                            width: 24px;
+                            height: 24px;
+                            source: @image-url("../assets/icons/icon-cross-circle.svg");
+                            image-fit: contain;
+                            opacity: dns-remove-touch.pressed ? 1.0 : dns-remove-touch.has-hover ? 0.8 : 0.6;
+                        }
+
+                        dns-remove-touch := TouchArea {
+                            clicked => { root.dns-remove(index); }
+                        }
+                    }
+                }
+                if root.dns-input-visible: Rectangle {
+                    y: root.dns-addresses.length * 49px;
+                    width: parent.width;
+                    height: 48px;
+                    background: SettingsColors.blue-20;
+                    SettingsTextField {
+                        x: 40px;
+                        y: 6px;
+                        width: parent.width - 48px;
+                        text: root.new-dns-address;
+                        placeholder: "Enter IP";
+                        invalid: root.dns-address-invalid;
+                        edited(value) => { root.new-dns-address = value; }
+                        accepted(value) => { root.dns-add(value); root.dns-input-visible = false; }
+                    }
+                }
+                if !root.dns-input-visible: Rectangle {
+                    y: root.dns-addresses.length * 49px;
+                    width: parent.width;
+                    height: 48px;
+                    background: dns-add-touch.has-hover ? SettingsColors.blue-60 : SettingsColors.blue-20;
+                    Text {
+                        x: 40px;
+                        width: parent.width - 88px;
+                        height: parent.height;
+                        text: "Add a server";
+                        color: SettingsColors.white;
+                        font-family: "Open Sans";
+                        font-size: 16px;
+                        font-weight: 400;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        x: parent.width - 40px;
+                        y: 8px;
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: transparent;
+                        Image {
+                            x: 4px;
+                            y: 4px;
+                            width: 24px;
+                            height: 24px;
+                            source: @image-url("../assets/icons/icon-add-circle.svg");
+                            image-fit: contain;
+                            opacity: dns-add-touch.pressed ? 1.0 : dns-add-touch.has-hover ? 0.8 : 0.6;
+                        }
+                    }
+
+                    dns-add-touch := TouchArea {
+                        clicked => { root.new-dns-address = ""; root.dns-input-visible = true; }
+                    }
+                }
+            }
+        }
+
+        customdns-footer := BodyText {
+            x: 32px;
+            y: root.y-customdns-card + 48px + root.dns-list-extra + 4px;
+            width: parent.width - 64px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: root.any-dns-blocker ? "Disable all DNS content blockers above to activate this setting." : "Enable to add at least one DNS server.";
+        }
+
+        ToggleRow {
+            x: 16px;
+            y: root.y-ipv6;
+            width: parent.width - 32px;
+            label: "In-tunnel IPv6";
+            checked: root.ipv6;
+            toggled(v) => { root.ipv6 = v; root.setting-changed("ipv6", v); }
+        }
+
+        Rectangle {
+            x: parent.width - 96px;
+            y: root.y-ipv6 + 12px;
+            width: 24px;
+            height: 24px;
+            Image {
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-info-circle.svg");
+                image-fit: contain;
+                opacity: ipv6-info-touch.has-hover ? 1 : 0.7;
+            }
+
+            ipv6-info-touch := TouchArea {
+                clicked => { root.ipv6-info-open = true; }
+            }
+        }
+
+        ipv6-footer := BodyText {
+            x: 32px;
+            y: root.y-ipv6-footer;
+            width: parent.width - 64px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: "Enable to allow IPv6 traffic through the tunnel.";
+        }
+
+        Rectangle {
+            x: 16px;
+            y: root.y-killswitch-card;
+            width: parent.width - 32px;
+            height: 97px;
+            border-radius: 16px;
+            clip: true;
+            background: SettingsColors.dark-blue;
+            SettingsRow {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                label: "Kill switch";
+                solo: false;
+                enabled: false;
+            }
+
+            Rectangle {
+                x: parent.width - 88px;
+                y: 12px;
+                width: 24px;
+                height: 24px;
+                Image {
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-info-circle.svg");
+                    image-fit: contain;
+                    opacity: kill-switch-info-touch.has-hover ? 1 : 0.7;
+                }
+
+                kill-switch-info-touch := TouchArea {
+                    clicked => { root.kill-switch-info-open = true; }
+                }
+            }
+
+            MullvadSwitch {
+                x: parent.width - 48px;
+                y: 12px;
+                checked: true;
+                enabled: false;
+            }
+
+            ToggleRow {
+                y: 49px;
+                width: parent.width;
+                label: "Lockdown mode";
+                checked: root.lockdown;
+                solo: false;
+                toggled(v) => { root.lockdown = v; root.setting-changed("lockdown", v); }
+            }
+
+            Rectangle {
+                x: parent.width - 88px;
+                y: 61px;
+                width: 24px;
+                height: 24px;
+                Image {
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-info-circle.svg");
+                    image-fit: contain;
+                    opacity: lockdown-info-touch.has-hover ? 1 : 0.7;
+                }
+
+                lockdown-info-touch := TouchArea {
+                    clicked => { root.lockdown-info-open = true; }
+                }
+            }
+        }
+
+        SettingsRow {
+            x: 16px;
+            y: root.y-anticensorship;
+            width: parent.width - 32px;
+            label: "Anti-censorship";
+            value: root.obfuscation-label;
+            navigation: true;
+            clicked => { root.open-anti-censorship(); }
+        }
+
+        ToggleRow {
+            x: 16px;
+            y: root.y-quantum;
+            width: parent.width - 32px;
+            label: "Quantum-resistant tunnel";
+            checked: root.quantum-resistant;
+            toggled(v) => { root.quantum-resistant = v; root.setting-changed("quantum-resistant", v); }
+        }
+
+        Rectangle {
+            x: parent.width - 96px;
+            y: root.y-quantum + 12px;
+            width: 24px;
+            height: 24px;
+            Image {
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-info-circle.svg");
+                image-fit: contain;
+                opacity: quantum-info-touch.has-hover ? 1 : 0.7;
+            }
+
+            quantum-info-touch := TouchArea {
+                clicked => { root.quantum-info-open = true; }
+            }
+        }
+        // "Device IP version" and "MTU" are inline settings-listbox/text-field widgets directly
+        // on this page upstream, not navigation rows to a separate subpage.
+        Rectangle {
+            x: 16px;
+            y: root.y-ipversion;
+            width: parent.width - 32px;
+            height: 195px;
+            border-radius: 16px;
+            clip: true;
+            background: SettingsColors.dark-blue;
+            Rectangle {
+                y: 0;
+                width: parent.width;
+                height: 48px;
+                background: SettingsColors.blue;
+                Text {
+                    x: 16px;
+                    width: parent.width - 64px;
+                    height: parent.height;
+                    text: "Device IP version";
+                    color: SettingsColors.white;
+                    font-family: "Open Sans";
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+
+                Rectangle {
+                    x: parent.width - 40px;
+                    y: 12px;
+                    width: 24px;
+                    height: 24px;
+                    Image {
+                        width: 24px;
+                        height: 24px;
+                        source: @image-url("../assets/icons/icon-info-circle.svg");
+                        image-fit: contain;
+                        opacity: ip-version-info-touch.has-hover ? 1 : 0.7;
+                    }
+
+                    ip-version-info-touch := TouchArea {
+                        clicked => { root.ip-version-info-open = true; }
+                    }
+                }
+            }
+
+            RadioRow {
+                y: 49px;
+                width: parent.width;
+                label: "Automatic";
+                selected: root.ip-version-mode == 0;
+                clicked => { root.ip-version-mode = 0; root.ip-version-changed(0); }
+            }
+
+            RadioRow {
+                y: 98px;
+                width: parent.width;
+                label: "IPv4";
+                selected: root.ip-version-mode == 1;
+                clicked => { root.ip-version-mode = 1; root.ip-version-changed(1); }
+            }
+
+            RadioRow {
+                y: 147px;
+                width: parent.width;
+                label: "IPv6";
+                selected: root.ip-version-mode == 2;
+                clicked => { root.ip-version-mode = 2; root.ip-version-changed(2); }
+            }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: root.y-mtu;
+            width: parent.width - 32px;
+            height: 48px;
+            border-radius: 16px;
+            clip: true;
+            background: SettingsColors.blue;
+            Text {
+                x: 16px;
+                width: 80px;
+                height: parent.height;
+                text: "MTU";
+                color: SettingsColors.white;
+                font-family: "Open Sans";
+                font-size: 14px;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+
+            SettingsTextField {
+                x: parent.width - 116px;
+                y: 6px;
+                width: 100px;
+                text: root.mtu-value;
+                placeholder: "Default";
+                invalid: root.mtu-invalid;
+                edited(value) => { root.mtu-value = value; }
+                accepted(value) => { root.mtu-submitted(value); }
+            }
+        }
+
+        mtu-footer := BodyText {
+            x: 32px;
+            y: root.y-mtu-footer;
+            width: parent.width - 64px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            color: root.mtu-invalid ? SettingsColors.red : SettingsColors.white-60;
+            text: "Set WireGuard MTU value. Valid range: 1280 - 1420.";
+        }
+
+        SettingsRow {
+            x: 16px;
+            y: root.y-ipoverride;
+            width: parent.width - 32px;
+            label: "Server IP override";
+            navigation: true;
+            clicked => { root.open-overrides(); }
+        }
+    }
+
+    ThinScrollbar {
+        x: parent.width - 12px;
+        y: 48px;
+        width: 12px;
+        height: parent.height - 48px;
+        content-height: vpn-scroll.viewport-height;
+        visible-height: vpn-scroll.visible-height;
+        scroll-y <=> vpn-scroll.viewport-y;
+    }
+
+    lan-info-overlay := Rectangle {
+        visible: root.lan-info-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea {
+            clicked => { root.lan-info-open = false; }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 340px) / 2;
+            width: parent.width - 32px;
+            height: 340px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            BodyText {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 54px;
+                color: SettingsColors.white;
+                text: "This feature allows access to other devices on the local network, such as for sharing, printing, streaming, etc.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 78px;
+                width: parent.width - 32px;
+                height: 130px;
+                color: SettingsColors.white;
+                text: "It does this by allowing network communication outside the tunnel to local multicast and broadcast ranges as well as to and from these private IP ranges:\n10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, fe80::/10, fc00::/7";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 216px;
+                width: parent.width - 32px;
+                height: 68px;
+                color: SettingsColors.white;
+                text: "If you can’t connect you can try using the IP address instead of the host name.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: parent.height - 56px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.lan-info-open = false; }
+            }
+        }
+    }
+
+    dns-blocker-info-overlay := Rectangle {
+        visible: root.dns-blocker-info-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea {
+            clicked => { root.dns-blocker-info-open = false; }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 260px) / 2;
+            width: parent.width - 32px;
+            height: 260px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            BodyText {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 54px;
+                color: SettingsColors.white;
+                text: "When this feature is enabled it stops the device from contacting certain domains or websites known for distributing ads, malware, trackers and more.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 78px;
+                width: parent.width - 32px;
+                height: 36px;
+                color: SettingsColors.white;
+                text: "This might cause issues on certain websites, services, and apps.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 122px;
+                width: parent.width - 32px;
+                height: 54px;
+                color: SettingsColors.white;
+                text: "Attention: this setting cannot be used in combination with Use custom DNS server";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: parent.height - 56px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.dns-blocker-info-open = false; }
+            }
+        }
+    }
+
+    malware-info-overlay := Rectangle {
+        visible: root.malware-info-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea {
+            clicked => { root.malware-info-open = false; }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 180px) / 2;
+            width: parent.width - 32px;
+            height: 180px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            BodyText {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 72px;
+                color: SettingsColors.white;
+                text: "Warning: The malware blocker is not an anti-virus and should not be treated as such, this is just an extra layer of protection.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: parent.height - 56px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.malware-info-open = false; }
+            }
+        }
+    }
+
+    ipv6-info-overlay := Rectangle {
+        visible: root.ipv6-info-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea {
+            clicked => { root.ipv6-info-open = false; }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 220px) / 2;
+            width: parent.width - 32px;
+            height: 220px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            BodyText {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 54px;
+                color: SettingsColors.white;
+                text: "When this feature is enabled, IPv6 can be used alongside IPv4 in the VPN tunnel to communicate with internet services.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 78px;
+                width: parent.width - 32px;
+                height: 68px;
+                color: SettingsColors.white;
+                text: "IPv4 is always enabled and the majority of websites and applications use this protocol. We do not recommend enabling IPv6 unless you know you need it.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: parent.height - 56px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.ipv6-info-open = false; }
+            }
+        }
+    }
+
+    kill-switch-info-overlay := Rectangle {
+        visible: root.kill-switch-info-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea {
+            clicked => { root.kill-switch-info-open = false; }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 260px) / 2;
+            width: parent.width - 32px;
+            height: 260px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            BodyText {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 68px;
+                color: SettingsColors.white;
+                text: "This built-in feature prevents your traffic from leaking outside of the VPN tunnel if your network suddenly stops working or if the tunnel fails, it does this by blocking your traffic until your connection is reestablished.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 92px;
+                width: parent.width - 32px;
+                height: 96px;
+                color: SettingsColors.white;
+                text: "The difference between the Kill Switch and Lockdown Mode is that the Kill Switch will prevent any leaks from happening during automatic tunnel reconnects, software crashes and similar accidents. With Lockdown Mode enabled, you must be connected to a Mullvad VPN server to be able to reach the internet.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: parent.height - 56px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.kill-switch-info-open = false; }
+            }
+        }
+    }
+
+    lockdown-info-overlay := Rectangle {
+        visible: root.lockdown-info-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea {
+            clicked => { root.lockdown-info-open = false; }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 260px) / 2;
+            width: parent.width - 32px;
+            height: 260px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            BodyText {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 82px;
+                color: SettingsColors.white;
+                text: "The difference between the Kill Switch and Lockdown Mode is that the Kill Switch will prevent any leaks from happening during automatic tunnel reconnects, software crashes and similar accidents.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 106px;
+                width: parent.width - 32px;
+                height: 82px;
+                color: SettingsColors.white;
+                text: "With Lockdown Mode enabled, you must be connected to a Mullvad VPN server to be able to reach the internet. Manually disconnecting or quitting the app will block your connection.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: parent.height - 56px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.lockdown-info-open = false; }
+            }
+        }
+    }
+
+    quantum-info-overlay := Rectangle {
+        visible: root.quantum-info-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea {
+            clicked => { root.quantum-info-open = false; }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 220px) / 2;
+            width: parent.width - 32px;
+            height: 220px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            BodyText {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 40px;
+                color: SettingsColors.white;
+                text: "This feature makes the WireGuard tunnel resistant to potential attacks from quantum computers.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 68px;
+                width: parent.width - 32px;
+                height: 82px;
+                color: SettingsColors.white;
+                text: "It does this by performing an extra key exchange using a quantum safe algorithm and mixing the result into WireGuard's regular encryption.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: parent.height - 56px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.quantum-info-open = false; }
+            }
+        }
+    }
+
+    ip-version-info-overlay := Rectangle {
+        visible: root.ip-version-info-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea {
+            clicked => { root.ip-version-info-open = false; }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 220px) / 2;
+            width: parent.width - 32px;
+            height: 220px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            BodyText {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 68px;
+                color: SettingsColors.white;
+                text: "This feature allows you to choose whether to use only IPv4, only IPv6, or allow the app to automatically decide the best option when connecting to a server.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 92px;
+                width: parent.width - 32px;
+                height: 54px;
+                color: SettingsColors.white;
+                text: "It can be useful when you are aware of problems caused by a certain IP version.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: parent.height - 56px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.ip-version-info-open = false; }
+            }
+        }
+    }
+}
+
+export component InterfaceSettings inherits Rectangle {
+    in-out property <bool> notifications;
+    in-out property <bool> monochromatic-icon;
+    in-out property <bool> animate-map;
+    in property <string> language: "English";
+    callback back;
+    callback setting-changed(string, bool);
+    callback language-clicked;
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "User interface settings";
+        title-visible: -interface-scroll.viewport-y > 34px;
+        back => { root.back(); }
+    }
+
+    private property <length> y-notifications: interface-title.y + interface-title.preferred-height + 8px;
+    private property <length> y-monochromatic: notifications-footer.y + notifications-footer.preferred-height + 16px;
+    private property <length> y-language: monochromatic-footer.y + monochromatic-footer.preferred-height + 16px;
+    private property <length> y-animate-map: root.y-language + 48px + 16px;
+    interface-scroll := ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 0;
+        y: 48px;
+        width: parent.width;
+        height: parent.height - 48px;
+        viewport-width: self.width;
+        viewport-height: animate-map-footer.y + animate-map-footer.preferred-height + 16px;
+        interface-title := PageTitle {
+            x: 16px;
+            y: 0;
+            width: parent.width - 32px;
+            height: self.preferred-height;
+            text: "User interface settings";
+            wrap: word-wrap;
+        }
+
+        ToggleRow {
+            x: 16px;
+            y: root.y-notifications;
+            width: parent.width - 32px;
+            label: "Notifications";
+            checked: root.notifications;
+            toggled(v) => { root.notifications = v; root.setting-changed("notifications", v); }
+        }
+
+        notifications-footer := BodyText {
+            x: 32px;
+            y: root.y-notifications + 48px + 4px;
+            width: parent.width - 64px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: "Enable or disable system notifications. The critical notifications will always be displayed.";
+        }
+
+        ToggleRow {
+            x: 16px;
+            y: root.y-monochromatic;
+            width: parent.width - 32px;
+            label: "Monochromatic tray icon";
+            checked: root.monochromatic-icon;
+            toggled(v) => { root.monochromatic-icon = v; root.setting-changed("monochromatic-icon", v); }
+        }
+
+        monochromatic-footer := BodyText {
+            x: 32px;
+            y: root.y-monochromatic + 48px + 4px;
+            width: parent.width - 64px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: "Use a monochromatic tray icon instead of a colored one.";
+        }
+
+        Rectangle {
+            x: 16px;
+            y: root.y-language;
+            width: parent.width - 32px;
+            height: 48px;
+            border-radius: 16px;
+            background: touch.pressed ? SettingsColors.blue-pressed : touch.has-hover ? SettingsColors.blue-hover : SettingsColors.blue;
+            Image {
+                x: 16px;
+                y: (parent.height - 24px) / 2;
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/images/icon-language.svg");
+                image-fit: contain;
+            }
+
+            Text {
+                x: 48px;
+                width: parent.width - 48px - 96px;
+                height: parent.height;
+                text: "Language";
+                color: SettingsColors.white;
+                font-family: "Open Sans";
+                font-size: 14px;
+                font-weight: 600;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            Text {
+                x: parent.width - 96px;
+                width: 56px;
+                height: parent.height;
+                text: root.language;
+                color: SettingsColors.white-60;
+                font-family: "Open Sans";
+                font-size: 14px;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            Image {
+                x: parent.width - 32px;
+                y: (parent.height - 24px) / 2;
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-chevron-right.svg");
+                image-fit: contain;
+                opacity: 0.6;
+            }
+
+            touch := TouchArea {
+                clicked => { root.language-clicked(); }
+            }
+        }
+
+        ToggleRow {
+            x: 16px;
+            y: root.y-animate-map;
+            width: parent.width - 32px;
+            label: "Animate map";
+            checked: root.animate-map;
+            toggled(v) => { root.animate-map = v; root.setting-changed("animate-map", v); }
+        }
+
+        animate-map-footer := BodyText {
+            x: 32px;
+            y: root.y-animate-map + 48px + 4px;
+            width: parent.width - 64px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: "Animate map movements.";
+        }
+    }
+
+    ThinScrollbar {
+        x: parent.width - 12px;
+        y: 48px;
+        width: 12px;
+        height: parent.height - 48px;
+        content-height: interface-scroll.viewport-height;
+        visible-height: interface-scroll.visible-height;
+        scroll-y <=> interface-scroll.viewport-y;
+    }
+}
+
+export component SplitTunnelingSettings inherits Rectangle {
+    in property <[SettingsApplication]> applications;
+    in-out property <string> search-text;
+    in property <bool> supported: true;
+    callback back;
+    callback search-changed(string);
+    callback launch-application(int);
+    callback find-application(string);
+    private property <bool> path-dialog-open: false;
+    private property <string> executable-path: "";
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "Split tunneling";
+        title-visible: -split-tunnel-scroll.viewport-y > 34px;
+        back => { root.back(); }
+    }
+
+    private property <length> y-desc: split-title.y + split-title.preferred-height + 8px;
+    private property <length> y-searchbar: split-desc.y + split-desc.preferred-height + 16px;
+    private property <length> y-list: root.y-searchbar + 40px + 16px;
+    private property <length> y-find-button: root.y-list + root.applications.length * 49px + 16px;
+    split-tunnel-scroll := ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 0;
+        y: 48px;
+        width: parent.width;
+        height: parent.height - 48px;
+        viewport-width: self.width;
+        viewport-height: root.y-find-button + 32px + 16px;
+        split-title := PageTitle {
+            x: 16px;
+            y: 0;
+            width: parent.width - 32px;
+            height: self.preferred-height;
+            text: "Split tunneling";
+        }
+        // Upstream's HeaderSubTitle is "labelTinySemiBold" (12px, semibold), not
+        // the plain-weight body text used for most descriptive paragraphs.
+        split-desc := Text {
+            x: 16px;
+            y: root.y-desc;
+            width: parent.width - 32px;
+            height: self.preferred-height;
+            wrap: word-wrap;
+            text: root.supported ? "Click on an app to launch it. Its traffic will bypass the VPN tunnel until you close it." : "Split tunneling is not supported by your system.";
+            color: SettingsColors.white-60;
+            font-family: "Open Sans";
+            font-size: 12px;
+            font-weight: 600;
+        }
+        // Upstream's SearchBar: unfocused = a subtle whiteOnDarkBlue10 tint (not the
+        // same blue as a settings row), focus flips it to a solid white field with
+        // dark-blue text, and a clear ("x") button appears once there's a query.
+        Rectangle {
+            x: 16px;
+            y: root.y-searchbar;
+            width: parent.width - 32px;
+            height: 40px;
+            border-radius: 4px;
+            background: !root.supported ? SettingsColors.white-on-dark-blue-5 : search-input.has-focus ? SettingsColors.white : SettingsColors.white-on-dark-blue-10;
+            Image {
+                x: 8px;
+                y: 8px;
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-search.svg");
+                image-fit: contain;
+                colorize: search-input.has-focus ? SettingsColors.blue : (root.supported ? SettingsColors.white-60 : SettingsColors.white-20);
+            }
+
+            if root.search-text == "": Text {
+                x: 40px;
+                width: parent.width - 84px;
+                height: parent.height;
+                text: "Search for...";
+                color: SettingsColors.white-on-dark-blue-60;
+                font-family: "Open Sans";
+                font-size: 15px;
+                vertical-alignment: center;
+            }
+            search-input := TextInput {
+                x: 40px;
+                y: 8px;
+                width: parent.width - 84px;
+                height: 24px;
+                text: root.search-text;
+                color: search-input.has-focus ? SettingsColors.blue : SettingsColors.white-60;
+                font-family: "Open Sans";
+                font-size: 15px;
+                enabled: root.supported;
+                edited => { root.search-text = self.text; root.search-changed(self.text); }
+            }
+
+            if root.search-text != "": Rectangle {
+                x: parent.width - 36px;
+                y: 8px;
+                width: 24px;
+                height: 24px;
+                border-radius: 12px;
+                Image {
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-cross-circle.svg");
+                    image-fit: contain;
+                    opacity: clear-touch.has-hover ? 1 : 0.7;
+                }
+
+                clear-touch := TouchArea {
+                    clicked => { root.search-text = ""; root.search-changed(""); }
+                }
+            }
+        }
+
+        for app[index] in root.applications: Rectangle {
+            // Cell/Row list items span the full page width (no side margins —
+            // this page's content isn't wrapped in a horizontalMargin
+            // container upstream) and are never rounded; the 16px indent
+            // comes from the row's own internal padding, not outer margin.
+            x: 0;
+            y: root.y-list + index * 49px;
+            width: parent.width;
+            height: 48px;
+            background: split-row-touch.pressed ? SettingsColors.blue-pressed : split-row-touch.has-hover ? SettingsColors.blue-80 : SettingsColors.blue;
+            opacity: root.supported ? 1 : 0.6;
+            Image {
+                x: 16px;
+                y: 6.5px;
+                width: 35px;
+                height: 35px;
+                source: app.icon;
+                image-fit: contain;
+            }
+
+            Text {
+                x: 59px;
+                width: parent.width - 59px - (app.warning ? 40px : 16px);
+                height: parent.height;
+                text: app.name;
+                color: SettingsColors.white;
+                font-family: "Open Sans";
+                font-size: 15px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            if app.warning: Image {
+                x: parent.width - 32px;
+                y: 12px;
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-alert-circle.svg");
+                image-fit: contain;
+            }
+            split-row-touch := TouchArea {
+                enabled: root.supported;
+                clicked => { root.launch-application(index); }
+            }
+        }
+        ActionButton {
+            x: 16px;
+            y: root.y-find-button;
+            width: parent.width - 32px;
+            text: "Find another app";
+            enabled: root.supported;
+            clicked => { root.path-dialog-open = true; }
+        }
+    }
+
+    ThinScrollbar {
+        x: parent.width - 12px;
+        y: 48px;
+        width: 12px;
+        height: parent.height - 48px;
+        content-height: split-tunnel-scroll.viewport-height;
+        visible-height: split-tunnel-scroll.visible-height;
+        scroll-y <=> split-tunnel-scroll.viewport-y;
+    }
+
+    path-dialog-overlay := Rectangle {
+        visible: root.path-dialog-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        z: 100;
+        background: #00000080;
+        TouchArea { }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 208px) / 2;
+            width: parent.width - 32px;
+            height: 208px;
+            border-radius: 8px;
+            background: SettingsColors.dark-blue;
+            Text {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 28px;
+                text: "Launch application";
+                color: SettingsColors.white;
+                font-family: "Source Sans Pro";
+                font-size: 22px;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+
+            BodyText {
+                x: 16px;
+                y: 52px;
+                width: parent.width - 32px;
+                height: 36px;
+                text: "Enter the absolute path to an executable.";
+                horizontal-alignment: center;
+            }
+
+            SettingsTextField {
+                x: 16px;
+                y: 96px;
+                width: parent.width - 32px;
+                text: root.executable-path;
+                placeholder: "/usr/bin/application";
+                edited(value) => { root.executable-path = value; }
+                accepted(value) => { if (value != "") { root.find-application(value); root.path-dialog-open = false; } }
+            }
+
+            ActionButton {
+                x: 16px;
+                y: 152px;
+                width: 120px;
+                text: "Cancel";
+                clicked => { root.path-dialog-open = false; }
+            }
+
+            ActionButton {
+                x: parent.width - 136px;
+                y: 152px;
+                width: 120px;
+                text: "Launch";
+                enabled: root.executable-path != "";
+                clicked => { root.find-application(root.executable-path); root.path-dialog-open = false; }
+            }
+        }
+    }
+}
+
+export component SupportSettings inherits Rectangle {
+    callback back;
+    callback report-problem;
+    callback open-faq;
+    callback open-github-issues;
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "Support";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "Support";
+    }
+
+    Rectangle {
+        x: 16px;
+        y: 98px;
+        width: parent.width - 32px;
+        height: 146px;
+        border-radius: 16px;
+        clip: true;
+        background: SettingsColors.dark-blue;
+        SettingsRow {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            label: "Report a problem";
+            navigation: true;
+            solo: false;
+            clicked => { root.report-problem(); }
+        }
+
+        SettingsRow {
+            y: 49px;
+            width: parent.width;
+            label: "FAQs & Guides";
+            navigation: true;
+            external: true;
+            solo: false;
+            clicked => { root.open-faq(); }
+        }
+
+        SettingsRow {
+            y: 98px;
+            width: parent.width;
+            label: "Mullvad-Gui-Slint issues";
+            navigation: true;
+            solo: false;
+            clicked => { root.open-github-issues(); }
+        }
+    }
+}
+
+export component ProblemReportSettings inherits Rectangle {
+    in-out property <string> email;
+    in-out property <string> message;
+    in-out property <string> state: "idle";
+    in property <string> error;
+    in-out property <bool> outdated-warning-open: false;
+    callback back;
+    callback send(string, string);
+    callback update-app;
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "Report a problem";
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "Report a problem";
+    }
+
+    subtitle := BodyText {
+        visible: root.state == "idle" || root.state == "confirm";
+        x: 16px;
+        y: 88px;
+        width: parent.width - 32px;
+        height: self.visible ? self.preferred-height : 0px;
+        text: "To help you more effectively, your app’s log file will be attached to this message. Your data will remain secure and private, as it is anonymised before being sent over an encrypted channel.";
+    }
+
+    form := Rectangle {
+        visible: root.state == "idle" || root.state == "confirm";
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+        Text {
+            x: 16px;
+            y: subtitle.y + subtitle.preferred-height + 16px;
+            width: parent.width - 32px;
+            height: 18px;
+            text: "Email (optional)";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        SettingsTextField {
+            x: 16px;
+            y: subtitle.y + subtitle.preferred-height + 38px;
+            width: parent.width - 32px;
+            text <=> root.email;
+            placeholder: "Your email (optional)";
+        }
+
+        Text {
+            x: 16px;
+            y: subtitle.y + subtitle.preferred-height + 88px;
+            width: parent.width - 32px;
+            height: 18px;
+            text: "Message";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        Rectangle {
+            x: 16px;
+            y: subtitle.y + subtitle.preferred-height + 110px;
+            width: parent.width - 32px;
+            height: 140px;
+            border-radius: 4px;
+            border-width: report-input.has-focus ? 2px : 1px;
+            border-color: report-input.has-focus ? SettingsColors.chalk : SettingsColors.white-40;
+            background: #1f3a57;
+            BodyText {
+                visible: report-input.text == "";
+                x: 8px;
+                y: 8px;
+                width: parent.width - 16px;
+                height: parent.height - 16px;
+                text: "To assist you better, please write in English or Swedish and include which country you are connecting from.";
+            }
+
+            report-input := TextInput {
+                x: 8px;
+                y: 8px;
+                width: parent.width - 16px;
+                height: parent.height - 16px;
+                text: root.message;
+                color: SettingsColors.white;
+                font-family: "Open Sans";
+                font-size: 14px;
+                wrap: word-wrap;
+                edited => { root.message = self.text; }
+            }
+        }
+
+        ActionButton {
+            x: 16px;
+            y: parent.height - 48px;
+            width: parent.width - 32px;
+            text: "Send";
+            success: true;
+            enabled: root.message != "";
+            clicked => {
+                if (root.email == "") { root.state = "confirm"; }
+                else { root.send(root.email, root.message); }
+            }
+        }
+    }
+
+    status-content := Rectangle {
+        visible: root.state == "sending" || root.state == "sent" || root.state == "failed";
+        x: 16px;
+        y: 128px;
+        width: parent.width - 32px;
+        height: parent.height - 144px;
+        background: transparent;
+        Image {
+            x: (parent.width - 64px) / 2;
+            y: 24px;
+            width: 64px;
+            height: 64px;
+            image-fit: contain;
+            source: root.state == "sending" ? @image-url("../assets/images/spinner.svg")
+                : root.state == "sent" ? @image-url("../assets/images/positive.svg")
+                : @image-url("../assets/images/negative.svg");
+        }
+
+        Text {
+            x: 0;
+            y: 104px;
+            width: parent.width;
+            height: 30px;
+            text: root.state == "sending" ? "Sending..." : root.state == "sent" ? "Sent" : "Failed to send";
+            color: SettingsColors.white;
+            font-family: "Source Sans Pro";
+            font-size: 24px;
+            font-weight: 700;
+            horizontal-alignment: center;
+        }
+
+        BodyText {
+            visible: root.state != "sending";
+            x: 16px;
+            y: 150px;
+            width: parent.width - 32px;
+            height: self.preferred-height;
+            horizontal-alignment: center;
+            text: root.state == "sent"
+                ? (root.email == "" ? "Thanks! We will look into this." : "Thanks! We will look into this. If needed we will contact you at " + root.email)
+                : "If you exit the form and try again later, the information you already entered will still be here.";
+        }
+
+        BodyText {
+            visible: root.state == "failed" && root.error != "";
+            x: 16px;
+            y: 224px;
+            width: parent.width - 32px;
+            height: self.preferred-height;
+            color: SettingsColors.red;
+            horizontal-alignment: center;
+            text: root.error;
+        }
+
+        ActionButton {
+            visible: root.state == "failed";
+            x: 0;
+            y: parent.height - 80px;
+            width: parent.width;
+            text: "Edit message";
+            clicked => { root.state = "idle"; }
+        }
+
+        ActionButton {
+            visible: root.state == "failed";
+            x: 0;
+            y: parent.height - 32px;
+            width: parent.width;
+            text: "Try again";
+            success: true;
+            clicked => { root.send(root.email, root.message); }
+        }
+    }
+
+    no-email-dialog := Rectangle {
+        visible: root.state == "confirm" && !root.outdated-warning-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        z: 100;
+        background: #00000080;
+        TouchArea { }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 280px) / 2;
+            width: parent.width - 32px;
+            height: 280px;
+            border-radius: 8px;
+            background: SettingsColors.dark-blue;
+            Image {
+                x: (parent.width - 48px) / 2;
+                y: 20px;
+                width: 48px;
+                height: 48px;
+                source: @image-url("../assets/icons/icon-alert-circle.svg");
+                image-fit: contain;
+            }
+
+            BodyText {
+                x: 16px;
+                y: 84px;
+                width: parent.width - 32px;
+                height: self.preferred-height;
+                color: SettingsColors.white;
+                horizontal-alignment: center;
+                text: "You are about to send the problem report without a way for us to get back to you. If you want an answer to your report you will have to enter an email address.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: 192px;
+                width: parent.width - 32px;
+                text: "Send anyway";
+                destructive: true;
+                clicked => { root.send(root.email, root.message); }
+            }
+
+            ActionButton {
+                x: 16px;
+                y: 232px;
+                width: parent.width - 32px;
+                text: "Back";
+                clicked => { root.state = "idle"; }
+            }
+        }
+    }
+
+    outdated-dialog := Rectangle {
+        visible: root.outdated-warning-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        z: 110;
+        background: #00000080;
+        TouchArea { }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 328px) / 2;
+            width: parent.width - 32px;
+            height: 328px;
+            border-radius: 8px;
+            background: SettingsColors.dark-blue;
+            Image {
+                x: (parent.width - 48px) / 2;
+                y: 20px;
+                width: 48px;
+                height: 48px;
+                source: @image-url("../assets/icons/icon-alert-circle.svg");
+                image-fit: contain;
+            }
+
+            BodyText {
+                x: 16px;
+                y: 84px;
+                width: parent.width - 32px;
+                height: self.preferred-height;
+                color: SettingsColors.white;
+                horizontal-alignment: center;
+                text: "You are using an old version of the app. Please upgrade and see if the problem still exists before sending a report.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: 200px;
+                width: parent.width - 32px;
+                text: "Update app";
+                success: true;
+                clicked => { root.update-app(); }
+            }
+
+            ActionButton {
+                x: 16px;
+                y: 240px;
+                width: parent.width - 32px;
+                text: "Continue anyway";
+                destructive: true;
+                clicked => { root.outdated-warning-open = false; }
+            }
+
+            ActionButton {
+                x: 16px;
+                y: 280px;
+                width: parent.width - 32px;
+                text: "Cancel";
+                clicked => { root.outdated-warning-open = false; root.back(); }
+            }
+        }
+    }
+}
+
+export component AppInfoSettings inherits Rectangle {
+    in property <string> version;
+    in property <bool> update-available;
+    in property <string> suggested-version;
+    in-out property <bool> beta-releases;
+    in property <bool> is-beta-version;
+    callback back;
+    callback changelog-clicked;
+    callback update-clicked;
+    callback beta-releases-changed(bool);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "App info";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "App info";
+    }
+
+    SettingsRow {
+        visible: root.update-available;
+        x: 16px;
+        y: 98px;
+        width: parent.width - 32px;
+        label: "Update available";
+        value: root.suggested-version;
+        navigation: true;
+        clicked => { root.update-clicked(); }
+    }
+
+    Rectangle {
+        x: 16px;
+        y: root.update-available ? 162px : 98px;
+        width: parent.width - 32px;
+        height: 97px;
+        border-radius: 16px;
+        clip: true;
+        background: SettingsColors.dark-blue;
+        SettingsRow {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            label: "Changelog";
+            navigation: true;
+            solo: false;
+            clicked => { root.changelog-clicked(); }
+        }
+
+        SettingsRow {
+            y: 49px;
+            width: parent.width;
+            label: "Version";
+            value: root.version;
+            solo: false;
+        }
+    }
+
+    beta-toggle := ToggleRow {
+        x: 16px;
+        y: root.update-available ? 275px : 211px;
+        width: parent.width - 32px;
+        label: "Beta program";
+        checked: root.beta-releases;
+        enabled: !root.is-beta-version;
+        toggled(v) => { root.beta-releases = v; root.beta-releases-changed(v); }
+    }
+
+    BodyText {
+        x: 32px;
+        y: beta-toggle.y + beta-toggle.height + 4px;
+        width: parent.width - 64px;
+        height: self.preferred-height;
+        text: root.is-beta-version ? "This option is unavailable while using a beta version." : "Enable to get notified when new beta versions of the app are released.";
+    }
+}
+
+export component ChangelogSettings inherits Rectangle {
+    in property <string> version;
+    in property <[string]> items;
+    callback back;
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "What’s new";
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "What’s new";
+    }
+
+    Text {
+        x: 16px;
+        y: 94px;
+        width: parent.width - 32px;
+        height: 32px;
+        text: root.version;
+        color: SettingsColors.white;
+        font-family: "Source Sans Pro";
+        font-size: 24px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    changelog-list := ListView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 0;
+        y: 134px;
+        width: parent.width;
+        height: parent.height - 150px;
+        for item in root.items: Rectangle {
+            height: Math.max(52px, body.preferred-height + 24px);
+            Text {
+                x: 24px;
+                y: 8px;
+                width: 12px;
+                height: 20px;
+                text: "•";
+                color: SettingsColors.white-60;
+                font-family: "Open Sans";
+                font-size: 14px;
+            }
+
+            body := Text {
+                x: 40px;
+                y: 8px;
+                width: parent.width - 56px;
+                text: item;
+                color: SettingsColors.white-60;
+                font-family: "Open Sans";
+                font-size: 14px;
+                wrap: word-wrap;
+            }
+        }
+    }
+
+    ThinScrollbar {
+        x: changelog-list.x + changelog-list.width - 12px;
+        y: changelog-list.y;
+        width: 12px;
+        height: changelog-list.height;
+        content-height: changelog-list.viewport-height;
+        visible-height: changelog-list.visible-height;
+        scroll-y <=> changelog-list.viewport-y;
+    }
+}
+
+export component ApiAccessSettings inherits Rectangle {
+    in property <[ApiAccessMethodData]> methods;
+    in-out property <int> menu-index: -1;
+    in-out property <int> pending-delete-index: -1;
+    callback back;
+    callback add-method;
+    callback toggle-method(string, bool);
+    callback use-method(string);
+    callback test-method(string);
+    callback edit-method(string);
+    callback delete-method(string);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: "API access";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "API access";
+    }
+
+    BodyText {
+        x: 16px;
+        y: 88px;
+        width: parent.width - 32px;
+        height: 36px;
+        text: "Manage and add custom methods to access the Mullvad API.";
+    }
+
+    api-access-scroll := ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 0;
+        y: 132px;
+        width: parent.width;
+        height: parent.height - 132px;
+        viewport-width: self.width;
+        viewport-height: root.methods.length * 49px + 24px + 48px + 16px;
+        for method[index] in root.methods: Rectangle {
+            // Cell.Row list items (not the rounded ListItem cards used
+            // elsewhere) — full page width, no rounding, no side margin. This
+            // page's method list isn't wrapped in a horizontalMargin container
+            // upstream (only the "Add" button's own Container gets one).
+            // Row height is the Cell system's 48px `rowMinHeight` — the
+            // label+sub-label content (44px with a sub-label, 20px without)
+            // always fits inside that, it never needs to grow past it — plus
+            // the universal 1px seam between rows (marginBottom on every Row).
+            x: 0;
+            y: index * 49px;
+            width: parent.width;
+            height: 48px;
+            background: method-touch.pressed ? SettingsColors.blue-pressed : method-touch.has-hover ? SettingsColors.blue-hover : SettingsColors.blue;
+            Text {
+                x: 16px;
+                y: method.testing || method.test-result >= 0 || method.in-use ? 7px : 14px;
+                width: parent.width - 112px;
+                height: 20px;
+                text: method.name;
+                color: SettingsColors.white;
+                font-family: "Source Sans Pro";
+                font-size: 18px;
+                font-weight: 600;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                visible: method.testing || method.test-result >= 0;
+                x: 16px;
+                y: 30px;
+                width: 10px;
+                height: 10px;
+                border-radius: 5px;
+                background: method.testing ? SettingsColors.white-60 : method.test-result == 1 ? SettingsColors.green : SettingsColors.red;
+            }
+
+            Text {
+                x: method.testing || method.test-result >= 0 ? 32px : 16px;
+                y: 27px;
+                width: parent.width - 128px;
+                height: 14px;
+                text: method.testing ? "Testing..." : method.test-result == 1 ? "API reachable" : method.test-result == 0 ? "API unreachable" : method.in-use ? "In use" : "";
+                color: SettingsColors.white-60;
+                font-family: "Open Sans";
+                font-size: 12px;
+                font-weight: 600;
+                overflow: elide;
+            }
+
+            MullvadSwitch {
+                x: parent.width - 80px;
+                y: 14px;
+                checked: method.enabled;
+                toggled(value) => { root.toggle-method(method.id, value); }
+            }
+
+            Rectangle {
+                x: parent.width - 40px;
+                y: 8px;
+                width: 32px;
+                height: 32px;
+                border-radius: 16px;
+                background: menu-touch.pressed ? SettingsColors.white-20 : transparent;
+                Image {
+                    x: 4px;
+                    y: 4px;
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-more-horizontal-circle.svg");
+                    image-fit: contain;
+                    opacity: 0.8;
+                }
+
+                menu-touch := TouchArea {
+                    clicked => { root.menu-index = root.menu-index == index ? -1 : index; }
+                }
+            }
+
+            method-touch := TouchArea {
+                width: parent.width - 96px;
+            }
+        }
+        ActionButton {
+            x: parent.width - 76px;
+            y: root.methods.length * 49px + 24px;
+            width: 60px;
+            text: "Add";
+            clicked => { root.add-method(); }
+        }
+    }
+
+    ThinScrollbar {
+        x: parent.width - 12px;
+        y: 132px;
+        width: 12px;
+        height: parent.height - 132px;
+        content-height: api-access-scroll.viewport-height;
+        visible-height: api-access-scroll.visible-height;
+        scroll-y <=> api-access-scroll.viewport-y;
+    }
+
+    Rectangle {
+        visible: root.menu-index >= 0 && root.menu-index < root.methods.length;
+        x: 144px;
+        y: 140px + min(root.menu-index * 49px, 210px) - api-access-scroll.viewport-y;
+        z: 200;
+        width: 160px;
+        height: root.menu-index >= 0 && root.methods[root.menu-index].custom ? 145px : 73px;
+        border-radius: 8px;
+        clip: true;
+        background: SettingsColors.blue-60;
+        SettingsRow {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: 36px;
+            label: "Use";
+            solo: false;
+            enabled: !root.methods[root.menu-index].in-use;
+            clicked => { root.use-method(root.methods[root.menu-index].id); root.menu-index = -1; }
+        }
+
+        SettingsRow {
+            x: 0;
+            y: 36px;
+            width: parent.width;
+            height: 36px;
+            label: "Test";
+            solo: false;
+            clicked => { root.test-method(root.methods[root.menu-index].id); root.menu-index = -1; }
+        }
+
+        SettingsRow {
+            visible: root.methods[root.menu-index].custom;
+            x: 0;
+            y: 72px;
+            width: parent.width;
+            height: 36px;
+            label: "Edit";
+            solo: false;
+            clicked => { root.edit-method(root.methods[root.menu-index].id); root.menu-index = -1; }
+        }
+
+        SettingsRow {
+            visible: root.methods[root.menu-index].custom;
+            x: 0;
+            y: 108px;
+            width: parent.width;
+            height: 36px;
+            label: "Delete";
+            solo: false;
+            clicked => { root.pending-delete-index = root.menu-index; root.menu-index = -1; }
+        }
+    }
+
+    Rectangle {
+        visible: root.pending-delete-index >= 0 && root.pending-delete-index < root.methods.length;
+        x: 0;
+        y: 0;
+        z: 300;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        Rectangle {
+            x: 16px;
+            y: 190px;
+            width: parent.width - 32px;
+            height: 188px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            Text {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 28px;
+                text: "Delete access method?";
+                color: SettingsColors.white;
+                font-family: "Source Sans Pro";
+                font-size: 24px;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+
+            BodyText {
+                x: 16px;
+                y: 58px;
+                width: parent.width - 32px;
+                height: 48px;
+                text: "Delete ‘" + root.methods[root.pending-delete-index].name + "’? This action cannot be undone.";
+                horizontal-alignment: center;
+            }
+
+            ActionButton {
+                x: 16px;
+                y: 132px;
+                width: 120px;
+                text: "Cancel";
+                clicked => { root.pending-delete-index = -1; }
+            }
+
+            ActionButton {
+                x: parent.width - 136px;
+                y: 132px;
+                width: 120px;
+                text: "Delete";
+                destructive: true;
+                clicked => { root.delete-method(root.methods[root.pending-delete-index].id); root.pending-delete-index = -1; }
+            }
+        }
+    }
+}
+
+export component AntiCensorshipSettings inherits Rectangle {
+    in-out property <int> method; // 0 auto, 1 WG port, 2 LWO, 3 QUIC, 4 Shadowsocks, 5 UDP-over-TCP, 6 none
+    in property <string> wireguard-port: "Automatic";
+    in property <string> lwo-port: "Automatic";
+    in property <string> shadowsocks-port: "Automatic";
+    in property <string> udp-over-tcp-port: "Automatic";
+    callback back;
+    callback method-changed(int);
+    callback configure-method(int);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: "Anti-censorship";
+        title-visible: -anti-censorship-scroll.viewport-y > 34px;
+        back => { root.back(); }
+    }
+
+    anti-censorship-scroll := ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 0;
+        y: 48px;
+        width: parent.width;
+        height: parent.height - 48px;
+        viewport-width: self.width;
+        viewport-height: anti-censorship-card.y + 434px + 16px;
+        PageTitle {
+            x: 16px;
+            y: 0;
+            width: parent.width - 32px;
+            text: "Anti-censorship";
+        }
+        // Upstream renders this as two separate paragraphs (not one \n\n-joined
+        // string) — the second one is semibold, matching DAITA's first paragraph.
+        anti-censorship-desc1 := BodyText {
+            x: 16px;
+            y: 42px;
+            width: parent.width - 32px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            text: "These methods may be useful when you are blocked from reaching Mullvad. When \"Automatic\" is selected, the app will attempt all methods until one works.";
+        }
+
+        anti-censorship-desc2 := BodyText {
+            x: 16px;
+            y: anti-censorship-desc1.y + anti-censorship-desc1.preferred-height + 16px;
+            width: parent.width - 32px;
+            wrap: word-wrap;
+            height: self.preferred-height;
+            font-weight: 600;
+            text: "Please note that these methods do not improve performance, and may increase system utilization and battery consumption.";
+        }
+
+        Text {
+            x: 16px;
+            y: anti-censorship-desc2.y + anti-censorship-desc2.preferred-height + 16px;
+            width: parent.width - 32px;
+            height: 20px;
+            text: "Method";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        anti-censorship-card := Rectangle {
+            x: 16px;
+            y: anti-censorship-desc2.y + anti-censorship-desc2.preferred-height + 16px + 28px;
+            width: parent.width - 32px;
+            height: 434px;
+            border-radius: 16px;
+            clip: true;
+            background: SettingsColors.dark-blue;
+            RadioRow {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                label: "Automatic";
+                selected: root.method == 0;
+                clicked => { root.method = 0; root.method-changed(0); }
+            }
+            // WireGuard/LWO/Shadowsocks/UDP-over-TCP are "split options" upstream:
+            // the label+detail area and the configure-chevron are two separately
+            // clickable regions, each with their own opaque background (same
+            // level color as the row) and a real 2px gap between them
+            // (`margin-left: 2px` on the trailing action in ListItemTrailingActions.tsx)
+            // — this is an intentional visual seam, not a layout bug.
+            RadioRow {
+                y: 49px;
+                width: parent.width - 50px;
+                label: "WireGuard port";
+                detail: "Port: " + root.wireguard-port;
+                selected: root.method == 1;
+                clicked => { root.method = 1; root.method-changed(1); }
+            }
+
+            Rectangle {
+                x: parent.width - 48px;
+                y: 49px;
+                width: 48px;
+                height: 62px;
+                background: wg-configure-touch.pressed ? SettingsColors.blue-pressed : wg-configure-touch.has-hover ? SettingsColors.blue-hover : SettingsColors.blue-60;
+                Image {
+                    x: 12px;
+                    y: 19px;
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-chevron-right.svg");
+                    image-fit: contain;
+                }
+
+                wg-configure-touch := TouchArea {
+                    clicked => { root.configure-method(1); }
+                }
+            }
+
+            RadioRow {
+                y: 112px;
+                width: parent.width - 50px;
+                label: "LWO";
+                detail: "Port: " + root.lwo-port;
+                selected: root.method == 2;
+                clicked => { root.method = 2; root.method-changed(2); }
+            }
+
+            Rectangle {
+                x: parent.width - 48px;
+                y: 112px;
+                width: 48px;
+                height: 62px;
+                background: lwo-configure-touch.pressed ? SettingsColors.blue-pressed : lwo-configure-touch.has-hover ? SettingsColors.blue-hover : SettingsColors.blue-60;
+                Image {
+                    x: 12px;
+                    y: 19px;
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-chevron-right.svg");
+                    image-fit: contain;
+                }
+
+                lwo-configure-touch := TouchArea {
+                    clicked => { root.configure-method(2); }
+                }
+            }
+
+            RadioRow {
+                y: 175px;
+                width: parent.width;
+                label: "QUIC";
+                selected: root.method == 3;
+                clicked => { root.method = 3; root.method-changed(3); }
+            }
+
+            RadioRow {
+                y: 224px;
+                width: parent.width - 50px;
+                label: "Shadowsocks";
+                detail: "Port: " + root.shadowsocks-port;
+                selected: root.method == 4;
+                clicked => { root.method = 4; root.method-changed(4); }
+            }
+
+            Rectangle {
+                x: parent.width - 48px;
+                y: 224px;
+                width: 48px;
+                height: 62px;
+                background: ss-configure-touch.pressed ? SettingsColors.blue-pressed : ss-configure-touch.has-hover ? SettingsColors.blue-hover : SettingsColors.blue-60;
+                Image {
+                    x: 12px;
+                    y: 19px;
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-chevron-right.svg");
+                    image-fit: contain;
+                }
+
+                ss-configure-touch := TouchArea {
+                    clicked => { root.configure-method(4); }
+                }
+            }
+
+            RadioRow {
+                y: 287px;
+                width: parent.width - 50px;
+                label: "UDP-over-TCP";
+                detail: "Port: " + root.udp-over-tcp-port;
+                selected: root.method == 5;
+                clicked => { root.method = 5; root.method-changed(5); }
+            }
+
+            Rectangle {
+                x: parent.width - 48px;
+                y: 287px;
+                width: 48px;
+                height: 62px;
+                background: udp-configure-touch.pressed ? SettingsColors.blue-pressed : udp-configure-touch.has-hover ? SettingsColors.blue-hover : SettingsColors.blue-60;
+                Image {
+                    x: 12px;
+                    y: 19px;
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-chevron-right.svg");
+                    image-fit: contain;
+                }
+
+                udp-configure-touch := TouchArea {
+                    clicked => { root.configure-method(5); }
+                }
+            }
+
+            RadioRow {
+                y: 350px;
+                width: parent.width;
+                label: "None";
+                selected: root.method == 6;
+                clicked => { root.method = 6; root.method-changed(6); }
+            }
+        }
+    }
+
+    ThinScrollbar {
+        x: parent.width - 12px;
+        y: 48px;
+        width: 12px;
+        height: parent.height - 48px;
+        content-height: anti-censorship-scroll.viewport-height;
+        visible-height: anti-censorship-scroll.visible-height;
+        scroll-y <=> anti-censorship-scroll.viewport-y;
+    }
+}
+
+export component IpVersionSettings inherits Rectangle {
+    in-out property <int> value; // 0 automatic, 1 IPv4, 2 IPv6
+    callback back;
+    callback changed(int);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: "Device IP version";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "Device IP version";
+    }
+
+    BodyText {
+        x: 16px;
+        y: 88px;
+        width: parent.width - 32px;
+        height: 72px;
+        text: "Choose whether to use only IPv4, only IPv6, or allow the app to automatically decide the best option when connecting to a server.";
+    }
+
+    Rectangle {
+        x: 16px;
+        y: 176px;
+        width: parent.width - 32px;
+        height: 146px;
+        border-radius: 16px;
+        clip: true;
+        background: SettingsColors.dark-blue;
+        RadioRow {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            label: "Automatic";
+            selected: root.value == 0;
+            clicked => { root.value = 0; root.changed(0); }
+        }
+
+        RadioRow {
+            y: 49px;
+            width: parent.width;
+            label: "IPv4";
+            selected: root.value == 1;
+            clicked => { root.value = 1; root.changed(1); }
+        }
+
+        RadioRow {
+            y: 98px;
+            width: parent.width;
+            label: "IPv6";
+            selected: root.value == 2;
+            clicked => { root.value = 2; root.changed(2); }
+        }
+    }
+}
+
+export component MtuSettings inherits Rectangle {
+    in-out property <string> value;
+    in property <bool> invalid;
+    callback back;
+    callback submitted(string);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: "WireGuard MTU";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "WireGuard MTU";
+    }
+
+    Text {
+        x: 16px;
+        y: 108px;
+        width: 100px;
+        height: 20px;
+        text: "MTU";
+        color: SettingsColors.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    SettingsTextField {
+        x: 176px;
+        y: 100px;
+        width: 112px;
+        text: root.value;
+        placeholder: "Default";
+        invalid: root.invalid;
+        edited(value) => { root.value = value; }
+        accepted(value) => { root.submitted(value); }
+    }
+
+    BodyText {
+        x: 16px;
+        y: 148px;
+        width: parent.width - 32px;
+        height: 54px;
+        text: "Set WireGuard MTU value. Valid range: 1280 - 1420. Leave empty to use the default.";
+        color: root.invalid ? SettingsColors.red : SettingsColors.white-60;
+    }
+
+    ActionButton {
+        x: 16px;
+        y: 218px;
+        width: parent.width - 32px;
+        text: "Apply";
+        enabled: !root.invalid;
+        clicked => { root.submitted(root.value); }
+    }
+}
+
+export component ObfuscationPortSettings inherits Rectangle {
+    in property <int> method;
+    in-out property <string> value;
+    callback back;
+    callback submitted(int, string);
+    private property <bool> custom-selected: root.value != "" && root.value != "53" && root.value != "51820" && root.value != "80" && root.value != "443" && root.value != "5001";
+    private property <string> title: root.method == 1 ? "WireGuard port" : root.method == 2 ? "LWO settings" : root.method == 4 ? "Shadowsocks settings" : "UDP-over-TCP settings";
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: root.title;
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: root.title;
+    }
+
+    Text {
+        x: 16px;
+        y: 96px;
+        width: parent.width - 32px;
+        height: 20px;
+        text: "Port";
+        color: SettingsColors.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    Rectangle {
+        x: 16px;
+        y: 128px;
+        width: parent.width - 32px;
+        height: root.method == 4 ? 98px : root.method == 5 ? 245px : 196px;
+        border-radius: 16px;
+        clip: true;
+        background: SettingsColors.dark-blue;
+        RadioRow {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            label: "Automatic";
+            selected: root.value == "";
+            clicked => { root.value = ""; root.submitted(root.method, ""); }
+        }
+
+        if root.method == 1 || root.method == 2: RadioRow {
+            y: 49px;
+            width: parent.width;
+            label: "53";
+            selected: root.value == "53";
+            clicked => { root.value = "53"; root.submitted(root.method, "53"); }
+        }
+        if root.method == 1 || root.method == 2: RadioRow {
+            y: 98px;
+            width: parent.width;
+            label: "51820";
+            selected: root.value == "51820";
+            clicked => { root.value = "51820"; root.submitted(root.method, "51820"); }
+        }
+        if root.method == 5: RadioRow {
+            y: 49px;
+            width: parent.width;
+            label: "80";
+            selected: root.value == "80";
+            clicked => { root.value = "80"; root.submitted(root.method, "80"); }
+        }
+        if root.method == 5: RadioRow {
+            y: 98px;
+            width: parent.width;
+            label: "443";
+            selected: root.value == "443";
+            clicked => { root.value = "443"; root.submitted(root.method, "443"); }
+        }
+        if root.method == 5: RadioRow {
+            y: 147px;
+            width: parent.width;
+            label: "5001";
+            selected: root.value == "5001";
+            clicked => { root.value = "5001"; root.submitted(root.method, "5001"); }
+        }
+        RadioRow {
+            y: root.method == 4 ? 49px : root.method == 5 ? 196px : 147px;
+            width: parent.width;
+            label: "Custom";
+            selected: root.custom-selected;
+            clicked => { if (!root.custom-selected) { root.value = "1"; } }
+        }
+    }
+
+    SettingsTextField {
+        visible: root.custom-selected;
+        x: 16px;
+        y: root.method == 4 ? 242px : root.method == 5 ? 389px : 340px;
+        width: parent.width - 32px;
+        text: root.value;
+        placeholder: "Port";
+        invalid: root.value == "" || root.value.to-float() < 1 || root.value.to-float() > 65535;
+        edited(value) => { root.value = value; }
+        accepted(value) => { if (!self.invalid) { root.submitted(root.method, value); } }
+    }
+
+    BodyText {
+        x: 16px;
+        y: root.method == 4 ? 294px : root.method == 5 ? 441px : 392px;
+        width: parent.width - 32px;
+        height: 40px;
+        text: root.method == 4 ? "Valid range: 1 - 65535" : "Choose one of the recommended ports or enter a custom port.";
+    }
+
+    ActionButton {
+        visible: root.custom-selected;
+        x: 16px;
+        y: parent.height - 48px;
+        width: parent.width - 32px;
+        text: "Apply";
+        enabled: root.value.to-float() >= 1 && root.value.to-float() <= 65535;
+        clicked => { root.submitted(root.method, root.value); }
+    }
+}
+
+export component ServerOverrideSettings inherits Rectangle {
+    in property <[RelayOverrideData]> overrides;
+    in property <string> status: "NO OVERRIDES IMPORTED";
+    callback back;
+    callback import-text;
+    callback import-file;
+    callback clear-all;
+    private property <bool> info-open: false;
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: "Server IP override";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    Rectangle {
+        z: 101;
+        x: parent.width - 40px;
+        y: 12px;
+        width: 24px;
+        height: 24px;
+        Image {
+            width: 24px;
+            height: 24px;
+            source: @image-url("../assets/icons/icon-info-circle.svg");
+            image-fit: contain;
+            opacity: override-info-touch.has-hover ? 1 : 0.7;
+        }
+
+        override-info-touch := TouchArea {
+            clicked => { root.info-open = true; }
+        }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "Server IP override";
+    }
+    // Upstream's HeaderSubTitle is "labelTinySemiBold" (12px, semibold), not the
+    // plain-weight body text used everywhere else.
+    Text {
+        x: 16px;
+        y: 88px;
+        width: parent.width - 32px;
+        height: 54px;
+        wrap: word-wrap;
+        text: "Import files or text with new IP addresses for the servers in the Select location view.";
+        color: SettingsColors.white-60;
+        font-family: "Open Sans";
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    HorizontalLayout {
+        x: 24px;
+        y: 158px;
+        width: parent.width - 48px;
+        height: 32px;
+        spacing: 16px;
+        ActionButton {
+            text: "Import via text";
+            horizontal-stretch: 1;
+            clicked => { root.import-text(); }
+        }
+
+        ActionButton {
+            text: "Import file";
+            horizontal-stretch: 1;
+            clicked => { root.import-file(); }
+        }
+    }
+    // There is no list of individual overrides upstream — just a status line
+    // ("NO OVERRIDES IMPORTED" / "OVERRIDES ACTIVE" / "IMPORT SUCCESSFUL"/etc).
+    Text {
+        x: 24px;
+        y: 214px;
+        width: parent.width - 48px;
+        height: 20px;
+        text: root.status;
+        color: root.overrides.length > 0 ? SettingsColors.green : SettingsColors.white;
+        font-family: "Open Sans";
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    ActionButton {
+        x: 16px;
+        y: parent.height - 48px;
+        width: parent.width - 32px;
+        text: "Clear all overrides";
+        destructive: true;
+        enabled: root.overrides.length > 0;
+        clicked => { root.clear-all(); }
+    }
+
+    override-info-overlay := Rectangle {
+        visible: root.info-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea {
+            clicked => { root.info-open = false; }
+        }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - 300px) / 2;
+            width: parent.width - 32px;
+            height: 300px;
+            border-radius: 12px;
+            background: SettingsColors.dark-blue;
+            BodyText {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 54px;
+                color: SettingsColors.white;
+                text: "On some networks, where various types of censorship are being used, our server IP addresses are sometimes blocked.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 78px;
+                width: parent.width - 32px;
+                height: 96px;
+                color: SettingsColors.white;
+                text: "To circumvent this you can import a file or a text, provided by our support team, with new IP addresses that override the default addresses of the servers in the Select location view.";
+            }
+
+            BodyText {
+                x: 16px;
+                y: 182px;
+                width: parent.width - 32px;
+                height: 54px;
+                color: SettingsColors.white;
+                text: "If you are having issues connecting to VPN servers, please contact support.";
+            }
+
+            ActionButton {
+                x: 16px;
+                y: parent.height - 56px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.info-open = false; }
+            }
+        }
+    }
+}
+
+export component SettingsTextImport inherits Rectangle {
+    in-out property <string> value: "";
+    in property <string> error: "";
+    callback back;
+    callback submit(string);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: "Import via text";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "Import via text";
+    }
+
+    BodyText {
+        x: 16px;
+        y: 88px;
+        width: parent.width - 32px;
+        height: 54px;
+        text: "Paste the settings provided by Mullvad support below.";
+    }
+
+    Rectangle {
+        x: 16px;
+        y: 152px;
+        width: parent.width - 32px;
+        height: 260px;
+        border-radius: 4px;
+        border-width: root.error == "" ? 0px : 2px;
+        border-color: SettingsColors.red;
+        background: SettingsColors.blue;
+        TextEdit {
+            x: 12px;
+            y: 12px;
+            width: parent.width - 24px;
+            height: parent.height - 24px;
+            text <=> root.value;
+            font-family: "Open Sans";
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+    }
+
+    BodyText {
+        visible: root.error != "";
+        x: 16px;
+        y: 420px;
+        width: parent.width - 32px;
+        height: 36px;
+        text: root.error;
+        color: SettingsColors.red;
+    }
+
+    ActionButton {
+        x: 16px;
+        y: parent.height - 48px;
+        width: parent.width - 32px;
+        text: "Import";
+        enabled: root.value != "";
+        clicked => { root.submit(root.value); }
+    }
+}
+
+export component SettingsFileImport inherits Rectangle {
+    in-out property <string> path: "";
+    in property <string> error: "";
+    callback back;
+    callback submit(string);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: "Import file";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "Import file";
+    }
+
+    BodyText {
+        x: 16px;
+        y: 88px;
+        width: parent.width - 32px;
+        height: 54px;
+        text: "Enter the path to a settings file provided by Mullvad support.";
+    }
+
+    SettingsTextField {
+        x: 16px;
+        y: 160px;
+        width: parent.width - 32px;
+        text: root.path;
+        placeholder: "/path/to/settings.json";
+        invalid: root.error != "";
+        edited(value) => { root.path = value; }
+        accepted(value) => { if (value != "") { root.submit(value); } }
+    }
+
+    BodyText {
+        visible: root.error != "";
+        x: 16px;
+        y: 212px;
+        width: parent.width - 32px;
+        height: 54px;
+        text: root.error;
+        color: SettingsColors.red;
+    }
+
+    ActionButton {
+        x: 16px;
+        y: parent.height - 48px;
+        width: parent.width - 32px;
+        text: "Import";
+        enabled: root.path != "";
+        clicked => { root.submit(root.path); }
+    }
+}
+
+export component LanguageSettings inherits Rectangle {
+    in property <[LanguageData]> languages;
+    callback back;
+    callback selected(string);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: "Select language";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "Select language";
+    }
+    // Same rounded-list-card treatment as every other RadioRow group in the
+    // app (Multihop mode, Anti-censorship method, Device IP version) — this
+    // is a plain Listbox upstream, but it's still built on the same ListItem
+    // primitives that get top/bottom corner rounding.
+    Rectangle {
+        x: 16px;
+        y: 98px;
+        width: parent.width - 32px;
+        height: parent.height - 122px;
+        border-radius: 16px;
+        clip: true;
+        background: SettingsColors.dark-blue;
+        language-list := ListView {
+            horizontal-scrollbar-policy: always-off;
+            vertical-scrollbar-policy: always-off;
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: parent.height;
+            for language[index] in root.languages: RadioRow {
+                width: parent.width;
+                label: language.name;
+                selected: language.selected;
+                clicked => { root.selected(language.code); }
+            }
+        }
+    }
+
+    ThinScrollbar {
+        x: parent.width - 12px;
+        y: 98px;
+        width: 12px;
+        height: parent.height - 122px;
+        content-height: language-list.viewport-height;
+        visible-height: language-list.visible-height;
+        scroll-y <=> language-list.viewport-y;
+    }
+}
+
+export component CustomDnsSettings inherits Rectangle {
+    in property <[string]> addresses;
+    in-out property <string> new-address;
+    in property <bool> invalid;
+    callback back;
+    callback add(string);
+    callback edit(int, string);
+    callback remove(int);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: "Custom DNS servers";
+        title-visible: false;
+        back => { root.back(); }
+    }
+
+    PageTitle {
+        x: 16px;
+        y: 48px;
+        width: parent.width - 32px;
+        text: "Custom DNS servers";
+    }
+
+    BodyText {
+        x: 16px;
+        y: 88px;
+        width: parent.width - 32px;
+        height: 36px;
+        text: "Add at least one IPv4 or IPv6 DNS server address.";
+    }
+
+    dns-list := ListView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 16px;
+        y: 132px;
+        width: parent.width - 32px;
+        height: 270px;
+        for address[index] in root.addresses: Rectangle {
+            width: parent.width;
+            height: 49px;
+            background: SettingsColors.blue;
+            SettingsTextField {
+                x: 8px;
+                y: 6px;
+                width: parent.width - 56px;
+                text: address;
+                accepted(value) => { root.edit(index, value); }
+            }
+
+            Rectangle {
+                x: parent.width - 40px;
+                y: 8px;
+                width: 32px;
+                height: 32px;
+                border-radius: 16px;
+                background: remove-touch.pressed ? SettingsColors.white-20 : transparent;
+                Image {
+                    x: 4px;
+                    y: 4px;
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-remove-circle.svg");
+                    image-fit: contain;
+                    opacity: 0.8;
+                }
+
+                remove-touch := TouchArea {
+                    clicked => { root.remove(index); }
+                }
+            }
+        }
+    }
+
+    ThinScrollbar {
+        x: dns-list.x + dns-list.width - 12px;
+        y: dns-list.y;
+        width: 12px;
+        height: dns-list.height;
+        content-height: dns-list.viewport-height;
+        visible-height: dns-list.visible-height;
+        scroll-y <=> dns-list.viewport-y;
+    }
+
+    SettingsTextField {
+        x: 16px;
+        y: 418px;
+        width: parent.width - 80px;
+        text: root.new-address;
+        placeholder: "Enter IP";
+        invalid: root.invalid;
+        edited(value) => { root.new-address = value; }
+        accepted(value) => { root.add(value); }
+    }
+
+    Rectangle {
+        x: parent.width - 56px;
+        y: 420px;
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+        background: add-touch.pressed ? SettingsColors.white-20 : transparent;
+        Image {
+            x: 4px;
+            y: 4px;
+            width: 24px;
+            height: 24px;
+            source: @image-url("../assets/icons/icon-add-circle.svg");
+            image-fit: contain;
+            opacity: 0.8;
+        }
+
+        add-touch := TouchArea {
+            clicked => { root.add(root.new-address); }
+        }
+    }
+}
+
+export component ApiAccessEditor inherits Rectangle {
+    in property <bool> is-new: true;
+    in property <string> method-id;
+    in-out property <string> name;
+    in-out property <int> proxy-type; // 0 Shadowsocks, 1 SOCKS5 remote, 2 SOCKS5 local
+    in-out property <string> server;
+    in-out property <string> port;
+    in-out property <string> username;
+    in-out property <string> password;
+    in-out property <string> cipher;
+    in property <bool> testing;
+    in property <int> test-result: -1;
+    callback back;
+    callback test-and-save(string, string, int, string, string, string, string, string);
+    callback delete-method(string);
+    background: SettingsColors.dark-blue;
+    NavigationHeader {
+        x: 0;
+        y: 0;
+        z: 100;
+        width: parent.width;
+        title: root.is-new ? "Add method" : "Edit method";
+        title-visible: -api-method-scroll.viewport-y > 34px;
+        back => { root.back(); }
+    }
+
+    api-method-scroll := ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        x: 0;
+        y: 48px;
+        width: parent.width;
+        height: parent.height - 48px;
+        viewport-width: self.width;
+        viewport-height: 630px;
+        PageTitle {
+            x: 16px;
+            y: 0;
+            width: parent.width - 32px;
+            text: root.is-new ? "Add method" : "Edit method";
+        }
+
+        BodyText {
+            x: 16px;
+            y: 42px;
+            width: parent.width - 32px;
+            height: 36px;
+            text: root.is-new ? "Adding a new API access method also tests it." : "Editing an API access method also tests it.";
+        }
+
+        Text {
+            x: 16px;
+            y: 94px;
+            width: 80px;
+            height: 20px;
+            text: "Name";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        SettingsTextField {
+            x: 104px;
+            y: 86px;
+            width: 200px;
+            text: root.name;
+            placeholder: "Enter name";
+            edited(v) => { root.name = v; }
+        }
+
+        Text {
+            x: 16px;
+            y: 146px;
+            width: 80px;
+            height: 20px;
+            text: "Type";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        Rectangle {
+            x: 104px;
+            y: 136px;
+            width: 200px;
+            height: 96px;
+            border-radius: 16px;
+            clip: true;
+            background: SettingsColors.blue;
+            RadioRow {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                height: 32px;
+                label: "Shadowsocks";
+                selected: root.proxy-type == 0;
+                clicked => { root.proxy-type = 0; }
+            }
+
+            RadioRow {
+                y: 32px;
+                width: parent.width;
+                height: 32px;
+                label: "SOCKS5 remote";
+                selected: root.proxy-type == 1;
+                clicked => { root.proxy-type = 1; }
+            }
+
+            RadioRow {
+                y: 64px;
+                width: parent.width;
+                height: 32px;
+                label: "SOCKS5 local";
+                selected: root.proxy-type == 2;
+                clicked => { root.proxy-type = 2; }
+            }
+        }
+
+        Text {
+            x: 16px;
+            y: 254px;
+            width: 80px;
+            height: 20px;
+            text: root.proxy-type == 2 ? "Remote server" : "Server";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        SettingsTextField {
+            x: 104px;
+            y: 246px;
+            width: 200px;
+            text: root.server;
+            placeholder: "Enter IP";
+            edited(v) => { root.server = v; }
+        }
+
+        Text {
+            x: 16px;
+            y: 306px;
+            width: 80px;
+            height: 20px;
+            text: "Port";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        SettingsTextField {
+            x: 104px;
+            y: 298px;
+            width: 200px;
+            text: root.port;
+            placeholder: "Enter port";
+            edited(v) => { root.port = v; }
+        }
+
+        Text {
+            visible: root.proxy-type == 1;
+            x: 16px;
+            y: 358px;
+            width: 80px;
+            height: 20px;
+            text: "Username";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        SettingsTextField {
+            visible: root.proxy-type == 1;
+            x: 104px;
+            y: 350px;
+            width: 200px;
+            text: root.username;
+            placeholder: "Optional";
+            edited(v) => { root.username = v; }
+        }
+
+        Text {
+            visible: root.proxy-type != 2;
+            x: 16px;
+            y: root.proxy-type == 1 ? 410px : 358px;
+            width: 80px;
+            height: 20px;
+            text: "Password";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        SettingsTextField {
+            visible: root.proxy-type != 2;
+            x: 104px;
+            y: root.proxy-type == 1 ? 402px : 350px;
+            width: 200px;
+            text: root.password;
+            placeholder: "Optional";
+            password: true;
+            edited(v) => { root.password = v; }
+        }
+
+        Text {
+            visible: root.proxy-type == 0;
+            x: 16px;
+            y: 410px;
+            width: 80px;
+            height: 20px;
+            text: "Cipher";
+            color: SettingsColors.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        SettingsTextField {
+            visible: root.proxy-type == 0;
+            x: 104px;
+            y: 402px;
+            width: 200px;
+            text: root.cipher;
+            placeholder: "Cipher name";
+            edited(v) => { root.cipher = v; }
+        }
+
+        Text {
+            visible: root.testing || root.test-result >= 0;
+            x: 16px;
+            y: 466px;
+            width: parent.width - 32px;
+            height: 20px;
+            text: root.testing ? "Testing..." : root.test-result == 1 ? "API reachable" : "API unreachable";
+            color: root.testing ? SettingsColors.white-60 : root.test-result == 1 ? SettingsColors.green : SettingsColors.red;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+            horizontal-alignment: center;
+        }
+
+        ActionButton {
+            visible: !root.is-new;
+            x: 16px;
+            y: 516px;
+            width: 76px;
+            text: "Delete";
+            destructive: true;
+            clicked => { root.delete-method(root.method-id); }
+        }
+
+        ActionButton {
+            x: 166px;
+            y: 516px;
+            width: 62px;
+            text: "Cancel";
+            clicked => { root.back(); }
+        }
+
+        ActionButton {
+            x: 236px;
+            y: 516px;
+            width: 68px;
+            text: root.is-new ? "Add" : "Save";
+            enabled: root.name != "" && root.server != "" && root.port != "";
+            clicked => { root.test-and-save(root.method-id, root.name, root.proxy-type, root.server, root.port, root.username, root.password, root.cipher); }
+        }
+    }
+
+    ThinScrollbar {
+        x: parent.width - 12px;
+        y: 48px;
+        width: 12px;
+        height: parent.height - 48px;
+        content-height: api-method-scroll.viewport-height;
+        visible-height: api-method-scroll.visible-height;
+        scroll-y <=> api-method-scroll.viewport-y;
+    }
+}
+
+export component SettingsView inherits Rectangle {
+    in-out property <int> page: 0;
+    in property <bool> daemon-available: true;
+    in property <bool> logged-in: true;
+    in property <bool> connected;
+    in property <bool> daita-enabled;
+    in property <string> multihop-value: "When needed";
+    in property <string> version;
+    in property <bool> update-available;
+    in property <string> suggested-version;
+    in-out property <bool> auto-start;
+    in-out property <bool> auto-connect;
+    in-out property <bool> allow-lan;
+    in-out property <bool> block-ads;
+    in-out property <bool> block-trackers;
+    in-out property <bool> block-malware;
+    in-out property <bool> block-gambling;
+    in-out property <bool> block-adult-content;
+    in-out property <bool> block-social-media;
+    in-out property <bool> custom-dns;
+    in-out property <bool> ipv6;
+    in-out property <bool> lockdown;
+    in-out property <bool> quantum-resistant;
+    in-out property <bool> notifications;
+    in-out property <bool> monochromatic-icon;
+    in-out property <bool> animate-map: true;
+    in-out property <bool> beta-releases;
+    in-out property <int> multihop-mode;
+    in property <string> ip-version: "Automatic";
+    in property <string> mtu: "Default";
+    in property <string> language: "English";
+    in property <[SettingsApplication]> applications;
+    in property <[ApiAccessMethodData]> api-methods;
+    in-out property <int> obfuscation-method;
+    in property <string> wireguard-port: "Automatic";
+    in property <string> lwo-port: "Automatic";
+    in property <string> shadowsocks-port: "Automatic";
+    in property <string> udp-over-tcp-port: "Automatic";
+    in-out property <int> ip-version-mode;
+    in-out property <string> mtu-input;
+    in property <bool> mtu-invalid;
+    in property <[RelayOverrideData]> relay-overrides;
+    in property <string> override-status: "NO OVERRIDES IMPORTED";
+    in property <[LanguageData]> languages;
+    in property <[string]> dns-addresses;
+    in property <[string]> changelog-items;
+    in-out property <string> new-dns-address;
+    in property <bool> dns-address-invalid;
+    in-out property <bool> api-editor-is-new: true;
+    in-out property <string> api-editor-id;
+    in-out property <string> api-editor-name;
+    in-out property <int> api-editor-type;
+    in-out property <string> api-editor-server;
+    in-out property <string> api-editor-port;
+    in-out property <string> api-editor-username;
+    in-out property <string> api-editor-password;
+    in-out property <string> api-editor-cipher;
+    in-out property <int> port-editor-method: 1;
+    in-out property <string> port-editor-value: "";
+    in-out property <string> override-import-value: "";
+    in-out property <string> override-import-path: "";
+    in-out property <string> override-import-error: "";
+    in-out property <string> problem-report-email: "";
+    in-out property <string> problem-report-message: "";
+    in-out property <string> problem-report-state: "idle";
+    in-out property <string> problem-report-error: "";
+    in-out property <bool> problem-report-outdated-warning: false;
+    in property <bool> is-beta-version: false;
+    in property <bool> api-editor-testing;
+    in property <int> api-editor-test-result: -1;
+    callback close;
+    callback navigate(int);
+    callback quit;
+    callback daita-changed(bool);
+    callback multihop-changed(int);
+    callback setting-changed(string, bool);
+    callback report-problem;
+    callback open-faq;
+    callback open-github-issues;
+    callback changelog-clicked;
+    callback update-clicked;
+    callback launch-application(int);
+    callback find-application(string);
+    callback api-toggle(string, bool);
+    callback api-use(string);
+    callback api-test(string);
+    callback api-edit(string);
+    callback api-delete(string);
+    callback api-save(string, string, int, string, string, string, string, string);
+    callback obfuscation-changed(int);
+    callback configure-obfuscation(int);
+    callback ip-version-changed(int);
+    callback mtu-submitted(string);
+    callback import-overrides-text;
+    callback import-overrides-file;
+    callback clear-overrides;
+    callback language-selected(string);
+    callback dns-add(string);
+    callback dns-edit(int, string);
+    callback dns-remove(int);
+    callback obfuscation-port-submitted(int, string);
+    callback import-overrides-json(string);
+    callback import-overrides-path(string);
+    callback problem-report-send(string, string);
+    background: SettingsColors.dark-blue;
+    clip: true;
+
+    SettingsLanding {
+        visible: root.page == 0;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        daemon-available: root.daemon-available;
+        logged-in: root.logged-in;
+        connected: root.connected;
+        daita-enabled: root.daita-enabled;
+        multihop-value: root.multihop-value;
+        version: root.version;
+        update-available: root.update-available;
+        back => { root.close(); }
+        navigate(destination) => { root.page = destination; root.navigate(destination); }
+        quit => { root.quit(); }
+    }
+
+    DaitaSettings {
+        visible: root.page == 1;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        enabled: root.daita-enabled;
+        back => { root.page = 0; }
+        enabled-changed(value) => { root.daita-changed(value); }
+    }
+
+    MultihopSettings {
+        visible: root.page == 2;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        mode: root.multihop-mode;
+        back => { root.page = 0; }
+        mode-changed(value) => { root.multihop-mode = value; root.multihop-changed(value); }
+    }
+
+    VpnSettings {
+        visible: root.page == 3;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        auto-start: root.auto-start;
+        auto-connect: root.auto-connect;
+        allow-lan: root.allow-lan;
+        block-ads: root.block-ads;
+        block-trackers: root.block-trackers;
+        block-malware: root.block-malware;
+        block-gambling: root.block-gambling;
+        block-adult-content: root.block-adult-content;
+        block-social-media: root.block-social-media;
+        custom-dns: root.custom-dns;
+        ipv6: root.ipv6;
+        lockdown: root.lockdown;
+        quantum-resistant: root.quantum-resistant;
+        ip-version-mode <=> root.ip-version-mode;
+        mtu-value <=> root.mtu-input;
+        mtu-invalid: root.mtu-invalid;
+        obfuscation-method <=> root.obfuscation-method;
+        dns-addresses: root.dns-addresses;
+        new-dns-address <=> root.new-dns-address;
+        dns-address-invalid: root.dns-address-invalid;
+        back => { root.page = 0; }
+        setting-changed(name, value) => { root.setting-changed(name, value); }
+        open-anti-censorship => { root.page = 9; root.navigate(9); }
+        ip-version-changed(value) => { root.ip-version-changed(value); }
+        mtu-submitted(value) => { root.mtu-submitted(value); }
+        open-overrides => { root.page = 12; root.navigate(12); }
+        dns-add(value) => { root.new-dns-address = value; root.dns-add(value); }
+        dns-edit(index, value) => { root.dns-edit(index, value); }
+        dns-remove(index) => { root.dns-remove(index); }
+    }
+
+    InterfaceSettings {
+        visible: root.page == 4;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        notifications: root.notifications;
+        monochromatic-icon: root.monochromatic-icon;
+        animate-map: root.animate-map;
+        language: root.language;
+        back => { root.page = 0; }
+        setting-changed(name, value) => { root.setting-changed(name, value); }
+        language-clicked => { root.page = 13; root.navigate(13); }
+    }
+
+    SplitTunnelingSettings {
+        visible: root.page == 5;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        applications: root.applications;
+        back => { root.page = 0; }
+        launch-application(index) => { root.launch-application(index); }
+        find-application(path) => { root.find-application(path); }
+    }
+
+    SupportSettings {
+        visible: root.page == 6;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        back => { root.page = 0; }
+        report-problem => { root.problem-report-state = "idle"; root.problem-report-error = ""; root.problem-report-outdated-warning = root.update-available; root.page = 20; }
+        open-faq => { root.open-faq(); }
+        open-github-issues => { root.open-github-issues(); }
+    }
+
+    AppInfoSettings {
+        visible: root.page == 7;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        version: root.version;
+        update-available: root.update-available;
+        suggested-version: root.suggested-version;
+        beta-releases: root.beta-releases;
+        is-beta-version: root.is-beta-version;
+        back => { root.page = 0; }
+        changelog-clicked => { root.page = 19; }
+        update-clicked => { root.update-clicked(); }
+        beta-releases-changed(value) => { root.beta-releases = value; root.setting-changed("beta-releases", value); }
+    }
+
+    ApiAccessSettings {
+        visible: root.page == 8;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        methods: root.api-methods;
+        back => { root.page = 0; }
+        add-method => { root.api-editor-is-new = true; root.api-editor-id = ""; root.page = 15; root.navigate(15); }
+        toggle-method(id, value) => { root.api-toggle(id, value); }
+        use-method(id) => { root.api-use(id); }
+        test-method(id) => { root.api-test(id); }
+        edit-method(id) => { root.api-editor-is-new = false; root.api-editor-id = id; root.api-edit(id); root.page = 15; root.navigate(15); }
+        delete-method(id) => { root.api-delete(id); }
+    }
+
+    AntiCensorshipSettings {
+        visible: root.page == 9;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        method: root.obfuscation-method;
+        wireguard-port: root.wireguard-port;
+        lwo-port: root.lwo-port;
+        shadowsocks-port: root.shadowsocks-port;
+        udp-over-tcp-port: root.udp-over-tcp-port;
+        back => { root.page = 3; }
+        method-changed(value) => { root.obfuscation-method = value; root.obfuscation-changed(value); }
+        configure-method(value) => {
+            root.port-editor-method = value;
+            root.port-editor-value = value == 1 ? (root.wireguard-port == "Automatic" ? "" : root.wireguard-port)
+                : value == 2 ? (root.lwo-port == "Automatic" ? "" : root.lwo-port)
+                : value == 4 ? (root.shadowsocks-port == "Automatic" ? "" : root.shadowsocks-port)
+                : (root.udp-over-tcp-port == "Automatic" ? "" : root.udp-over-tcp-port);
+            root.page = 16;
+            root.navigate(16);
+            root.configure-obfuscation(value);
+        }
+    }
+
+    IpVersionSettings {
+        visible: root.page == 10;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        value: root.ip-version-mode;
+        back => { root.page = 3; }
+        changed(value) => { root.ip-version-mode = value; root.ip-version-changed(value); }
+    }
+
+    MtuSettings {
+        visible: root.page == 11;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        value: root.mtu-input;
+        invalid: root.mtu-invalid;
+        back => { root.page = 3; }
+        submitted(value) => { root.mtu-input = value; root.mtu-submitted(value); }
+    }
+
+    ServerOverrideSettings {
+        visible: root.page == 12;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        overrides: root.relay-overrides;
+        status: root.override-status;
+        back => { root.page = 3; }
+        import-text => { root.override-import-error = ""; root.page = 17; root.navigate(17); root.import-overrides-text(); }
+        import-file => { root.override-import-error = ""; root.page = 18; root.navigate(18); root.import-overrides-file(); }
+        clear-all => { root.clear-overrides(); }
+    }
+
+    LanguageSettings {
+        visible: root.page == 13;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        languages: root.languages;
+        back => { root.page = 4; }
+        selected(code) => { root.language-selected(code); }
+    }
+
+    CustomDnsSettings {
+        visible: root.page == 14;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        addresses: root.dns-addresses;
+        new-address: root.new-dns-address;
+        invalid: root.dns-address-invalid;
+        back => { root.page = 3; }
+        add(value) => { root.new-dns-address = value; root.dns-add(value); }
+        edit(index, value) => { root.dns-edit(index, value); }
+        remove(index) => { root.dns-remove(index); }
+    }
+
+    ApiAccessEditor {
+        visible: root.page == 15;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        is-new: root.api-editor-is-new;
+        method-id: root.api-editor-id;
+        name: root.api-editor-name;
+        proxy-type: root.api-editor-type;
+        server: root.api-editor-server;
+        port: root.api-editor-port;
+        username: root.api-editor-username;
+        password: root.api-editor-password;
+        cipher: root.api-editor-cipher;
+        testing: root.api-editor-testing;
+        test-result: root.api-editor-test-result;
+        back => { root.page = 8; }
+        test-and-save(id, name, kind, server, port, username, password, cipher) => { root.api-save(id, name, kind, server, port, username, password, cipher); }
+        delete-method(id) => { root.api-delete(id); root.page = 8; }
+    }
+
+    ObfuscationPortSettings {
+        visible: root.page == 16;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        method: root.port-editor-method;
+        value <=> root.port-editor-value;
+        back => { root.page = 9; }
+        submitted(method, value) => { root.obfuscation-port-submitted(method, value); root.page = 9; }
+    }
+
+    SettingsTextImport {
+        visible: root.page == 17;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        value <=> root.override-import-value;
+        error: root.override-import-error;
+        back => { root.page = 12; }
+        submit(value) => { root.import-overrides-json(value); }
+    }
+
+    SettingsFileImport {
+        visible: root.page == 18;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        path <=> root.override-import-path;
+        error: root.override-import-error;
+        back => { root.page = 12; }
+        submit(path) => { root.import-overrides-path(path); }
+    }
+
+    ChangelogSettings {
+        visible: root.page == 19;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        version: root.version;
+        items: root.changelog-items;
+        back => { root.page = 7; }
+    }
+
+    ProblemReportSettings {
+        visible: root.page == 20;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        email <=> root.problem-report-email;
+        message <=> root.problem-report-message;
+        state: root.problem-report-state;
+        error: root.problem-report-error;
+        outdated-warning-open <=> root.problem-report-outdated-warning;
+        back => { root.page = 6; }
+        send(email, message) => { root.problem-report-send(email, message); }
+        update-app => { root.update-clicked(); }
+    }
+}

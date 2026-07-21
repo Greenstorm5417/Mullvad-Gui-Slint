@@ -1,0 +1,1029 @@
+// Geometry, colors, and motion mirror the upstream Mullvad desktop client.
+
+import { MullvadMap } from "map.slint";
+import {
+    ApiAccessMethodData,
+    LanguageData,
+    RelayOverrideData,
+    SettingsApplication,
+    SettingsView,
+} from "settings.slint";
+import {
+    AccountSurface,
+    AccountDevice,
+    DeviceRevokedSurface,
+    ExpiredAccountSurface,
+    TooManyDevicesSurface,
+} from "account.slint";
+import {
+    CustomListChoiceData,
+    CustomListLocationData,
+    LocationPage,
+    LocationRowData,
+    LocationFilterChip,
+    ProviderFilterData,
+} from "location.slint";
+import "../assets/fonts/OpenSans-Regular.ttf";
+import "../assets/fonts/OpenSans-Semibold.ttf";
+import "../assets/fonts/OpenSans-Bold.ttf";
+import "../assets/fonts/SourceSansPro-SemiBold.ttf";
+import "../assets/fonts/SourceSansPro-Bold.ttf";
+
+global MullvadPalette {
+    out property <color> white: #ffffff;
+    out property <color> white-60: #ffffff99;
+    out property <color> white-20: #ffffff33;
+    out property <color> red: #e34039;
+    out property <color> red-hover: #bb3c3b;
+    out property <color> red-pressed: #6a3540;
+    out property <color> green: #44ad4d;
+    out property <color> green-hover: #3b944b;
+    out property <color> green-pressed: #2a6148;
+    out property <color> blue: #294d73;
+    out property <color> blue-hover: #234161;
+    out property <color> blue-pressed: #1f3a57;
+    out property <color> dark-blue: #192e45;
+    out property <color> panel: #10182366;
+    out property <color> panel-expanded: #101823cc;
+}
+
+component HeaderIconButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> accessible-name;
+    callback clicked;
+    width: 24px;
+    height: 24px;
+    border-radius: 12px;
+    background: transparent;
+    forward-focus: keyboard;
+    accessible-role: button;
+    accessible-label: root.accessible-name;
+    accessible-action-default => { root.clicked(); }
+
+    Image {
+        width: 24px;
+        height: 24px;
+        x: 0;
+        y: 0;
+        source: root.icon;
+        image-fit: contain;
+        opacity: touch.pressed ? 1 : touch.has-hover ? 0.8 : 0.6;
+        animate opacity {
+            duration: 150ms;
+            easing: ease;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    keyboard := FocusScope {
+        x: 0;
+        width: 0;
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+}
+
+component MullvadButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> destructive: false;
+    in property <bool> success: false;
+    in property <bool> enabled: true;
+    callback clicked;
+    height: 32px;
+    border-radius: 4px;
+    opacity: root.enabled ? 1 : 0.4;
+    forward-focus: keyboard;
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { root.clicked(); }
+    background: root.destructive
+        ? (touch.pressed ? MullvadPalette.red-pressed : touch.has-hover ? MullvadPalette.red-hover : MullvadPalette.red)
+        : root.success
+        ? (touch.pressed ? MullvadPalette.green-pressed : touch.has-hover ? MullvadPalette.green-hover : MullvadPalette.green)
+        : (touch.pressed ? MullvadPalette.blue-pressed : touch.has-hover ? MullvadPalette.blue-hover : MullvadPalette.blue);
+
+    Text {
+        text: root.text;
+        color: MullvadPalette.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+
+    keyboard := FocusScope {
+        x: 0;
+        width: 0;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+}
+
+component MainHeader inherits Rectangle {
+    in property <bool> connected;
+    in property <bool> logged-in;
+    in property <bool> show-account: root.logged-in;
+    in property <string> device-name;
+    in property <string> time-left;
+    callback account-clicked;
+    callback settings-clicked;
+    height: root.logged-in ? 80px : 68px;
+    background: root.connected ? MullvadPalette.green : MullvadPalette.red;
+    animate height {
+        duration: 250ms;
+        easing: ease-in-out;
+    }
+    animate background {
+        duration: 250ms;
+        easing: ease-in-out;
+    }
+
+    Rectangle {
+        x: 16px;
+        y: 16px;
+        width: parent.width - 32px;
+        height: 38px;
+        background: transparent;
+
+        Image {
+            source: @image-url("../assets/images/logo-icon.svg");
+            x: 0;
+            y: 0;
+            width: 38px;
+            height: 38px;
+            image-fit: contain;
+        }
+
+        Image {
+            source: @image-url("../assets/images/logo-text.svg");
+            x: 46px;
+            y: 11.3px;
+            width: 142.5px;
+            height: 15.4px;
+            image-fit: contain;
+        }
+
+        HeaderIconButton {
+            visible: root.show-account;
+            x: parent.width - 64px;
+            y: 7px;
+            icon: @image-url("../assets/icons/icon-account-circle.svg");
+            accessible-name: "Account";
+            clicked => { root.account-clicked(); }
+        }
+
+        HeaderIconButton {
+            x: parent.width - 24px;
+            y: 7px;
+            icon: @image-url("../assets/icons/icon-settings-filled.svg");
+            accessible-name: "Settings";
+            clicked => { root.settings-clicked(); }
+        }
+    }
+
+    HorizontalLayout {
+        visible: root.logged-in;
+        x: 16px;
+        y: 58px;
+        width: parent.width - 32px;
+        height: 15px;
+        spacing: 24px;
+        alignment: start;
+
+        Text {
+            text: "Device name: " + root.device-name;
+            color: #ffffffcc;
+            font-family: "Open Sans";
+            font-size: 10px;
+            font-weight: 600;
+            overflow: elide;
+            vertical-alignment: center;
+            horizontal-stretch: 0;
+        }
+
+        Text {
+            visible: root.time-left != "";
+            text: "Time left: " + root.time-left;
+            color: #ffffffcc;
+            font-family: "Open Sans";
+            font-size: 10px;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-stretch: 0;
+        }
+    }
+}
+
+component ConnectionPanel inherits Rectangle {
+    in property <string> status;
+    in property <string> detail;
+    in property <string> location;
+    in property <bool> connected;
+    in property <bool> transitioning;
+    in property <string> in-address;
+    in property <string> out-ipv4;
+    in property <string> out-ipv6;
+    in property <string> protocol;
+    in property <[string]> features;
+    in-out property <bool> expanded: false;
+    callback connect-clicked;
+    callback reconnect-clicked;
+    callback location-clicked;
+
+    private property <bool> allow-expand: root.connected || root.status == "CONNECTING...";
+    private property <bool> has-features: root.allow-expand && root.features.length > 0;
+    private property <length> feature-height: root.has-features ? (root.expanded ? ((root.features.length + 1) / 2) * 30px + 17px : 47px) : 0px;
+    height: root.expanded && root.allow-expand ? 318px + root.feature-height : root.allow-expand ? 200px + root.feature-height : 180px;
+    border-radius: 12px;
+    background: root.expanded ? MullvadPalette.panel-expanded : MullvadPalette.panel;
+    clip: true;
+    animate height {
+        duration: 300ms;
+        easing: ease-out;
+    }
+    animate background {
+        duration: 300ms;
+        easing: ease-out;
+    }
+
+    Rectangle {
+        x: 16px;
+        y: 16px;
+        width: parent.width - 32px;
+        height: root.expanded ? 166px + root.feature-height : 68px + root.feature-height;
+        background: transparent;
+        border-width: root.expanded ? 0px : 0px;
+        animate height {
+            duration: 300ms;
+            easing: ease-out;
+        }
+
+        Text {
+            x: 0;
+            y: 0;
+            width: parent.width - 32px;
+            height: 24px;
+            text: root.status;
+            color: root.connected ? MullvadPalette.green : (root.transitioning ? MullvadPalette.white : MullvadPalette.red);
+            font-family: "Source Sans Pro";
+            font-size: 18px;
+            font-weight: 600;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        Text {
+            x: 0;
+            y: 28px;
+            width: parent.width - 32px;
+            height: 24px;
+            text: root.detail;
+            color: MullvadPalette.white;
+            font-family: "Source Sans Pro";
+            font-size: 18px;
+            font-weight: 600;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        Text {
+            x: 0;
+            y: 50px;
+            width: parent.width - 32px;
+            height: 20px;
+            text: root.allow-expand ? root.location : "";
+            color: MullvadPalette.white-60;
+            font-size: 14px;
+            font-family: "Open Sans";
+            font-weight: 400;
+            overflow: elide;
+        }
+
+        HeaderIconButton {
+            visible: root.allow-expand;
+            x: parent.width - 32px;
+            y: -4px;
+            icon: root.expanded
+                ? @image-url("../assets/icons/icon-chevron-down.svg")
+                : @image-url("../assets/icons/icon-chevron-up.svg");
+            accessible-name: root.expanded ? "Collapse connection details" : "Expand connection details";
+            clicked => { root.expanded = !root.expanded; }
+        }
+
+        Rectangle {
+            visible: root.expanded && root.allow-expand;
+            x: 0;
+            y: 82px + root.feature-height;
+            width: parent.width;
+            height: 1px;
+            background: MullvadPalette.white-20;
+        }
+
+        Text {
+            visible: root.has-features && root.expanded;
+            x: 0;
+            y: 76px;
+            width: parent.width;
+            height: 15px;
+            text: "Active features";
+            color: MullvadPalette.white-60;
+            font-size: 10px;
+            font-family: "Open Sans";
+        }
+
+        Rectangle {
+            visible: root.has-features;
+            x: 0;
+            y: root.expanded ? 95px : 76px;
+            width: parent.width;
+            height: root.feature-height - (root.expanded ? 17px : 0px);
+            clip: true;
+
+            for feature[index] in root.features: Rectangle {
+                visible: root.expanded || index < 4;
+                x: Math.mod(index, 2) * (parent.width / 2 + 4px);
+                y: (index / 2) * 30px;
+                width: parent.width / 2 - 4px;
+                height: 22px;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: MullvadPalette.blue;
+                background: #1b314a;
+
+                Text {
+                    x: 8px;
+                    width: parent.width - 16px;
+                    height: parent.height;
+                    text: feature;
+                    color: MullvadPalette.white;
+                    font-family: "Open Sans";
+                    font-size: 10px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+        }
+
+        Rectangle {
+            visible: root.expanded && root.allow-expand;
+            x: 0;
+            y: 98px + root.feature-height;
+            width: parent.width;
+            height: 90px;
+            background: transparent;
+
+            Text {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                height: 15px;
+                text: "Connection details";
+                color: MullvadPalette.white-60;
+                font-size: 10px;
+                font-family: "Open Sans";
+            }
+
+            Text {
+                x: 0;
+                y: 18px;
+                width: parent.width;
+                height: 18px;
+                text: "WireGuard";
+                color: MullvadPalette.white;
+                font-size: 12px;
+                font-family: "Open Sans";
+            }
+
+            Text {
+                x: 0;
+                y: 36px;
+                width: 48px;
+                height: 18px;
+                text: "In";
+                color: MullvadPalette.white-60;
+                font-size: 12px;
+                font-family: "Open Sans";
+            }
+
+            Text {
+                x: 48px;
+                y: 36px;
+                width: parent.width - 48px;
+                height: 18px;
+                text: root.in-address + (root.protocol != "" ? " " + root.protocol : "");
+                color: MullvadPalette.white;
+                font-size: 12px;
+                font-family: "Open Sans";
+                overflow: elide;
+            }
+
+            Text {
+                x: 0;
+                y: 54px;
+                width: 48px;
+                height: 18px;
+                text: "Out";
+                color: MullvadPalette.white-60;
+                font-size: 12px;
+                font-family: "Open Sans";
+            }
+
+            Text {
+                x: 48px;
+                y: 54px;
+                width: parent.width - 48px;
+                height: 18px;
+                text: root.out-ipv4 != "" ? root.out-ipv4 : root.out-ipv6;
+                color: MullvadPalette.white;
+                font-size: 12px;
+                font-family: "Open Sans";
+                overflow: elide;
+            }
+
+            Text {
+                visible: root.out-ipv4 != "" && root.out-ipv6 != "";
+                x: 48px;
+                y: 72px;
+                width: parent.width - 48px;
+                height: 18px;
+                text: root.out-ipv6;
+                color: MullvadPalette.white;
+                font-size: 12px;
+                font-family: "Open Sans";
+                overflow: elide;
+            }
+        }
+    }
+
+    Rectangle {
+        x: 16px;
+        y: root.height - 96px;
+        width: parent.width - 32px;
+        height: 80px;
+        background: transparent;
+        animate y {
+            duration: 300ms;
+            easing: ease-out;
+        }
+
+        MullvadButton {
+            x: 0;
+            y: 0;
+            width: root.allow-expand ? parent.width - 41px : parent.width;
+            text: root.allow-expand ? "Switch location" : root.location;
+            clicked => { root.location-clicked(); }
+        }
+
+        MullvadButton {
+            visible: root.allow-expand;
+            x: parent.width - 40px;
+            y: 0;
+            width: 40px;
+            border-radius: 4px;
+            text: "";
+            accessible-label: "Reconnect";
+            clicked => { root.reconnect-clicked(); }
+
+            Image {
+                x: 8px;
+                y: 4px;
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-reconnect.svg");
+                image-fit: contain;
+            }
+        }
+
+        MullvadButton {
+            x: 0;
+            y: 48px;
+            width: parent.width;
+            text: root.connected ? "Disconnect" : root.status == "CONNECTING..." ? "Cancel" : "Connect";
+            destructive: root.connected || root.status == "CONNECTING...";
+            success: !root.connected && root.status != "CONNECTING...";
+            enabled: root.status != "DISCONNECTING...";
+            clicked => { root.connect-clicked(); }
+        }
+    }
+}
+
+export component MullvadWindow inherits Window {
+    title: "Mullvad-Gui-Slint";
+    width: 320px;
+    height: 568px;
+    background: MullvadPalette.dark-blue;
+    default-font-family: "Open Sans";
+    forward-focus: global-keys;
+
+    in-out property <string> status: "CONNECTING...";
+    in-out property <string> detail: "";
+    in-out property <string> location: "Automatic";
+    in-out property <string> connection-in-address: "";
+    in-out property <string> connection-out-ipv4: "";
+    in-out property <string> connection-out-ipv6: "";
+    in-out property <string> connection-protocol: "";
+    in property <[string]> connection-features;
+    in-out property <bool> connection-panel-expanded: false;
+    in-out property <string> page: "main";
+    in-out property <string> app-version: "";
+    in-out property <bool> is-beta-version: false;
+    in-out property <bool> update-available: false;
+    in-out property <string> suggested-version: "";
+    in-out property <string> update-url: "https://github.com/Greenstorm5417/Mullvad-Gui-Slint/releases";
+    in-out property <bool> logged-in: false;
+    in-out property <string> device-name: "";
+    in-out property <string> current-device-id: "";
+    in-out property <string> time-left: "";
+    in-out property <string> account-number: "";
+    in-out property <string> paid-until: "Currently unavailable";
+    in-out property <bool> paid-until-expired: false;
+    in property <[LocationRowData]> relay-rows;
+    in-out property <length> relay-list-viewport-y;
+    in property <[LocationFilterChip]> relay-filters;
+    in property <[ProviderFilterData]> relay-providers;
+    in property <[CustomListLocationData]> custom-list-edit-locations;
+    in property <[CustomListChoiceData]> custom-list-choices;
+    in-out property <int> relay-ownership-filter: -1;
+    in-out property <int> relay-selected-provider-count: 0;
+    in-out property <string> location-initial-overlay: "";
+    in-out property <string> relay-search: "";
+    in-out property <bool> relay-recents-enabled: true;
+    in-out property <bool> connected: false;
+    in-out property <bool> transitioning: true;
+    in-out property <int> settings-page: 0;
+    in-out property <bool> daita-enabled: false;
+    in-out property <int> multihop-mode: 0;
+    in-out property <bool> auto-start: false;
+    in-out property <bool> auto-connect: false;
+    in-out property <bool> allow-lan: false;
+    in-out property <bool> block-ads: false;
+    in-out property <bool> block-trackers: false;
+    in-out property <bool> block-malware: false;
+    in-out property <bool> block-gambling: false;
+    in-out property <bool> block-adult-content: false;
+    in-out property <bool> block-social-media: false;
+    in-out property <bool> custom-dns: false;
+    in-out property <bool> ipv6: false;
+    in-out property <bool> lockdown: false;
+    in-out property <bool> quantum-resistant: false;
+    in-out property <bool> notifications: true;
+    in-out property <bool> monochromatic-icon: false;
+    in-out property <bool> animate-map: true;
+    in-out property <bool> beta-releases: false;
+    in-out property <string> ip-version: "Automatic";
+    in-out property <string> mtu: "Default";
+    in-out property <int> obfuscation-method: 0;
+    in-out property <string> wireguard-port: "Automatic";
+    in-out property <string> lwo-port: "Automatic";
+    in-out property <string> shadowsocks-port: "Automatic";
+    in-out property <string> udp-over-tcp-port: "Automatic";
+    in-out property <int> ip-version-mode: 0;
+    in-out property <string> mtu-input: "";
+    in-out property <string> language: "English";
+    in property <[string]> dns-addresses;
+    in property <[string]> changelog-items;
+    in-out property <string> new-dns-address: "";
+    in-out property <bool> dns-address-invalid: false;
+    in property <[RelayOverrideData]> relay-overrides;
+    in-out property <string> override-status: "NO OVERRIDES IMPORTED";
+    in-out property <string> override-import-error: "";
+    in-out property <string> problem-report-email: "";
+    in-out property <string> problem-report-message: "";
+    in-out property <string> problem-report-state: "idle";
+    in-out property <string> problem-report-error: "";
+    in property <[LanguageData]> languages;
+    in property <[ApiAccessMethodData]> api-methods;
+    in-out property <bool> api-editor-is-new: true;
+    in-out property <string> api-editor-id: "";
+    in-out property <string> api-editor-name: "";
+    in-out property <int> api-editor-type: 0;
+    in-out property <string> api-editor-server: "";
+    in-out property <string> api-editor-port: "";
+    in-out property <string> api-editor-username: "";
+    in-out property <string> api-editor-password: "";
+    in-out property <string> api-editor-cipher: "aes-256-gcm";
+    in property <[SettingsApplication]> split-applications;
+    in-out property <string> account-page: "account";
+    in-out property <string> account-state: "logged-out";
+    in-out property <bool> voucher-open: false;
+    in property <[AccountDevice]> account-devices;
+    in-out property <bool> devices-loading: false;
+    in-out property <string> devices-error: "";
+    in-out property <string> login-account-number: "";
+    in-out property <bool> login-account-number-valid: false;
+    in-out property <string> login-state: "idle";
+    in-out property <string> login-method: "existing";
+    in-out property <string> login-error-message: "";
+    in-out property <string> voucher-state: "idle";
+    in-out property <string> voucher-result-detail: "";
+    in-out property <bool> voucher-code-valid: false;
+    in-out property <bool> voucher-code-is-account-number: false;
+    in-out property <string> remove-device-error: "";
+    in-out property <string> saved-account-number: "";
+    in-out property <image> disconnected-map: @image-url("../assets/images/map-disconnected.svg");
+    in-out property <image> connected-map: @image-url("../assets/images/map-connected.svg");
+    callback connect-clicked;
+    callback reconnect-clicked;
+    callback location-clicked;
+    callback relay-selected(int);
+    callback relay-toggled(int);
+    callback relay-search-changed(string);
+    callback relay-recents-changed(bool);
+    callback relay-role-changed(int);
+    callback relay-provider-toggled(string, bool);
+    callback relay-providers-select-all(bool);
+    callback relay-ownership-changed(int);
+    callback relay-filters-applied;
+    callback relay-filter-removed(string);
+    callback custom-list-create(string);
+    callback custom-list-rename(int, string);
+    callback custom-list-delete(int);
+    callback custom-list-edit(int);
+    callback custom-list-location-toggle(int, int, bool);
+    callback prepare-add-location(int);
+    callback add-location-to-custom-list(int, int);
+    callback logout-clicked;
+    callback account-clicked;
+    callback settings-clicked;
+    callback setting-changed(string, bool);
+    callback daita-changed(bool);
+    callback multihop-changed(int);
+    callback settings-navigate(int);
+    callback quit-clicked;
+    callback open-url(string);
+    callback obfuscation-changed(int);
+    callback obfuscation-port-submitted(int, string);
+    callback ip-version-changed(int);
+    callback mtu-submitted(string);
+    callback dns-add(string);
+    callback dns-edit(int, string);
+    callback dns-remove(int);
+    callback clear-overrides;
+    callback launch-split-application(int);
+    callback find-split-application(string);
+    callback import-overrides-json(string);
+    callback import-overrides-path(string);
+    callback language-selected(string);
+    callback api-toggle(string, bool);
+    callback api-use(string);
+    callback api-test(string);
+    callback api-edit(string);
+    callback api-delete(string);
+    callback api-save(string, string, int, string, string, string, string, string);
+    callback copy-account-number(string);
+    callback buy-more-credit;
+    callback redeem-voucher(string);
+    callback voucher-code-edited(string);
+    callback dismiss-voucher;
+    callback refresh-devices;
+    callback remove-device(string);
+    callback dismiss-remove-device-error;
+    callback login-account-number-edited(string);
+    callback login(string);
+    callback create-account;
+    callback select-saved-account(string);
+    callback clear-account-history;
+    callback cancel-login;
+    callback problem-report-send(string, string);
+
+    global-keys := FocusScope {
+        x: 0;
+        width: 0;
+        key-pressed(event) => {
+            if (event.text != Key.Escape) {
+                return reject;
+            }
+            if (root.page == "locations") {
+                root.page = "main";
+                return accept;
+            }
+            if (root.page == "settings") {
+                if (root.settings-page != 0) {
+                    root.settings-page = 0;
+                } else {
+                    root.page = "main";
+                }
+                return accept;
+            }
+            if (root.page == "account" && root.logged-in) {
+                if (root.voucher-open) {
+                    root.voucher-open = false;
+                } else if (root.account-page != "account") {
+                    root.account-page = "account";
+                } else {
+                    root.page = "main";
+                }
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    MainHeader {
+        visible: root.page == "main" || root.page == "expired" || root.page == "revoked";
+        x: 0;
+        y: 0;
+        width: parent.width;
+        connected: root.connected || root.status == "CONNECTING...";
+        logged-in: root.logged-in;
+        show-account: root.logged-in || root.page == "revoked";
+        device-name: root.device-name;
+        time-left: root.time-left;
+        account-clicked => { root.page = "account"; root.account-clicked(); }
+        settings-clicked => { root.page = "settings"; root.settings-clicked(); }
+    }
+
+    Rectangle {
+        visible: root.page == "main";
+        x: 0;
+        y: root.logged-in ? 80px : 68px;
+        width: parent.width;
+        height: parent.height - self.y;
+        background: MullvadPalette.dark-blue;
+
+        MullvadMap {
+            width: parent.width;
+            height: parent.height;
+            connected: root.connected;
+            connecting: root.transitioning;
+            show-marker: true;
+            animate: root.animate-map;
+            disconnected-image: root.disconnected-map;
+            connected-image: root.connected-map;
+        }
+
+        ConnectionPanel {
+            x: 16px;
+            y: parent.height - self.height - 16px;
+            width: parent.width - 32px;
+            status: root.status;
+            detail: root.detail;
+            location: root.location;
+            connected: root.connected;
+            transitioning: root.transitioning;
+            in-address: root.connection-in-address;
+            out-ipv4: root.connection-out-ipv4;
+            out-ipv6: root.connection-out-ipv6;
+            protocol: root.connection-protocol;
+            features: root.connection-features;
+            expanded <=> root.connection-panel-expanded;
+            connect-clicked => { root.connect-clicked(); }
+            reconnect-clicked => { root.reconnect-clicked(); }
+            location-clicked => { root.page = "locations"; root.location-clicked(); }
+        }
+    }
+
+    LocationPage {
+        visible: root.page == "locations";
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        rows: root.relay-rows;
+        list-viewport-y <=> root.relay-list-viewport-y;
+        active-filters: root.relay-filters;
+        search-text: root.relay-search;
+        multihop-mode: root.multihop-mode;
+        recents-enabled: root.relay-recents-enabled;
+        providers: root.relay-providers;
+        custom-list-locations: root.custom-list-edit-locations;
+        custom-list-choices: root.custom-list-choices;
+        ownership-filter: root.relay-ownership-filter;
+        selected-provider-count: root.relay-selected-provider-count;
+        initial-overlay: root.location-initial-overlay;
+        show-entry-exit: root.multihop-mode == 1;
+        back => { root.page = "main"; }
+        select(index) => { root.relay-selected(index); }
+        toggle(index) => { root.relay-toggled(index); }
+        search-changed(value) => { root.relay-search = value; root.relay-search-changed(value); }
+        multihop-changed(value) => { root.multihop-mode = value; root.multihop-changed(value); }
+        recents-changed(value) => { root.relay-recents-enabled = value; root.relay-recents-changed(value); }
+        location-type-changed(value) => { root.relay-role-changed(value); }
+        provider-toggled(name, selected) => { root.relay-provider-toggled(name, selected); }
+        providers-select-all(selected) => { root.relay-providers-select-all(selected); }
+        ownership-changed(value) => { root.relay-ownership-filter = value; root.relay-ownership-changed(value); }
+        apply-filters => { root.relay-filters-applied(); }
+        remove-filter(id) => { root.relay-filter-removed(id); }
+        create-custom-list(name) => { root.custom-list-create(name); }
+        rename-custom-list(index, name) => { root.custom-list-rename(index, name); }
+        delete-custom-list(index) => { root.custom-list-delete(index); }
+        edit-custom-list(index) => { root.custom-list-edit(index); }
+        custom-list-location-toggled(list-index, location-index, selected) => { root.custom-list-location-toggle(list-index, location-index, selected); }
+        prepare-add-location(location-index) => { root.prepare-add-location(location-index); }
+        add-location-to-custom-list(list-index, location-index) => { root.add-location-to-custom-list(list-index, location-index); }
+    }
+
+    SettingsView {
+        visible: root.page == "settings";
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        page <=> root.settings-page;
+        daemon-available: root.detail != "Connecting to system service";
+        logged-in: root.logged-in;
+        connected: root.connected || root.transitioning;
+        daita-enabled: root.daita-enabled;
+        multihop-mode: root.multihop-mode;
+        multihop-value: root.multihop-mode == 1 ? "Always" : root.multihop-mode == 2 ? "Never" : "When needed";
+        version: root.app-version;
+        update-available: root.update-available;
+        suggested-version: root.suggested-version;
+        auto-start: root.auto-start;
+        auto-connect: root.auto-connect;
+        allow-lan: root.allow-lan;
+        block-ads: root.block-ads;
+        block-trackers: root.block-trackers;
+        block-malware: root.block-malware;
+        block-gambling: root.block-gambling;
+        block-adult-content: root.block-adult-content;
+        block-social-media: root.block-social-media;
+        custom-dns: root.custom-dns;
+        ipv6: root.ipv6;
+        lockdown: root.lockdown;
+        quantum-resistant: root.quantum-resistant;
+        ip-version: root.ip-version;
+        mtu: root.mtu;
+        mtu-input: root.mtu-input;
+        obfuscation-method: root.obfuscation-method;
+        wireguard-port: root.wireguard-port;
+        lwo-port: root.lwo-port;
+        shadowsocks-port: root.shadowsocks-port;
+        udp-over-tcp-port: root.udp-over-tcp-port;
+        ip-version-mode: root.ip-version-mode;
+        dns-addresses: root.dns-addresses;
+        changelog-items: root.changelog-items;
+        new-dns-address: root.new-dns-address;
+        dns-address-invalid: root.dns-address-invalid;
+        relay-overrides: root.relay-overrides;
+        override-status: root.override-status;
+        override-import-error: root.override-import-error;
+        problem-report-email: root.problem-report-email;
+        problem-report-message: root.problem-report-message;
+        problem-report-state: root.problem-report-state;
+        problem-report-error: root.problem-report-error;
+        is-beta-version: root.is-beta-version;
+        languages: root.languages;
+        api-methods: root.api-methods;
+        api-editor-is-new: root.api-editor-is-new;
+        api-editor-id: root.api-editor-id;
+        api-editor-name: root.api-editor-name;
+        api-editor-type: root.api-editor-type;
+        api-editor-server: root.api-editor-server;
+        api-editor-port: root.api-editor-port;
+        api-editor-username: root.api-editor-username;
+        api-editor-password: root.api-editor-password;
+        api-editor-cipher: root.api-editor-cipher;
+        language: root.language;
+        notifications: root.notifications;
+        monochromatic-icon: root.monochromatic-icon;
+        animate-map: root.animate-map;
+        beta-releases: root.beta-releases;
+        applications: root.split-applications;
+        close => { root.settings-page = 0; root.page = "main"; }
+        navigate(destination) => { root.settings-navigate(destination); }
+        quit => { root.quit-clicked(); }
+        setting-changed(name, value) => { root.setting-changed(name, value); }
+        daita-changed(value) => { root.daita-changed(value); }
+        multihop-changed(value) => { root.multihop-changed(value); }
+        obfuscation-changed(value) => { root.obfuscation-changed(value); }
+        obfuscation-port-submitted(method, value) => { root.obfuscation-port-submitted(method, value); }
+        ip-version-changed(value) => { root.ip-version-changed(value); }
+        mtu-submitted(value) => { root.mtu-submitted(value); }
+        dns-add(value) => { root.dns-add(value); }
+        dns-edit(index, value) => { root.dns-edit(index, value); }
+        dns-remove(index) => { root.dns-remove(index); }
+        clear-overrides => { root.clear-overrides(); }
+        import-overrides-json(value) => { root.import-overrides-json(value); }
+        import-overrides-path(path) => { root.import-overrides-path(path); }
+        problem-report-send(email, message) => { root.problem-report-send(email, message); }
+        language-selected(code) => { root.language-selected(code); }
+        api-toggle(id, enabled) => { root.api-toggle(id, enabled); }
+        api-use(id) => { root.api-use(id); }
+        api-test(id) => { root.api-test(id); }
+        api-edit(id) => { root.api-edit(id); }
+        api-delete(id) => { root.api-delete(id); }
+        api-save(id, name, kind, server, port, username, password, cipher) => {
+            root.api-save(id, name, kind, server, port, username, password, cipher);
+        }
+        open-faq => { root.open-url("https://mullvad.net/help"); }
+        report-problem => { root.open-url("https://github.com/Greenstorm5417/Mullvad-Gui-Slint/issues/new/choose"); }
+        open-github-issues => { root.open-url("https://github.com/Greenstorm5417/Mullvad-Gui-Slint/issues"); }
+        changelog-clicked => { root.open-url("https://github.com/Greenstorm5417/Mullvad-Gui-Slint/releases"); }
+        update-clicked => { root.open-url(root.update-url); }
+        launch-application(index) => { root.launch-split-application(index); }
+        find-application(path) => { root.find-split-application(path); }
+    }
+
+    AccountSurface {
+        visible: root.page == "account" && !(root.account-page == "devices" && root.login-state == "too-many-devices");
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        page: root.account-page;
+        device-name: root.device-name;
+        account-number: root.account-number;
+        paid-until: root.paid-until;
+        paid-until-expired: root.paid-until-expired;
+        offline: root.detail == "Connecting to system service";
+        devices: root.account-devices;
+        devices-loading: root.devices-loading;
+        devices-error: root.devices-error;
+        remove-device-error: root.remove-device-error;
+        login-account-number: root.login-account-number;
+        login-account-number-valid: root.login-account-number-valid;
+        login-state: root.login-state;
+        login-method: root.login-method;
+        login-error-message: root.login-error-message;
+        saved-account-number: root.saved-account-number;
+        voucher-state: root.voucher-state;
+        voucher-result-detail: root.voucher-result-detail;
+        voucher-code-valid: root.voucher-code-valid;
+        voucher-code-is-account-number: root.voucher-code-is-account-number;
+        voucher-open <=> root.voucher-open;
+        back => { if (root.logged-in) { root.account-page = "account"; root.page = "main"; } }
+        copy-account-number(value) => { root.copy-account-number(value); }
+        buy-more-credit => { root.buy-more-credit(); }
+        redeem-voucher(code) => { root.redeem-voucher(code); }
+        voucher-code-edited(code) => { root.voucher-code-edited(code); }
+        dismiss-voucher => { root.dismiss-voucher(); }
+        logout => { root.logout-clicked(); }
+        refresh-devices => { root.refresh-devices(); }
+        remove-device(id) => { root.remove-device(id); }
+        dismiss-remove-device-error => { root.dismiss-remove-device-error(); }
+        login-account-number-edited(value) => { root.login-account-number-edited(value); }
+        login(value) => { root.login(value); }
+        create-account => { root.create-account(); }
+        select-saved-account(value) => { root.select-saved-account(value); }
+        clear-account-history => { root.clear-account-history(); }
+        cancel-login => { root.cancel-login(); }
+        settings => { root.page = "settings"; root.settings-page = 0; }
+    }
+
+    TooManyDevicesSurface {
+        visible: root.page == "account" && root.account-page == "devices" && root.login-state == "too-many-devices";
+        width: parent.width;
+        height: parent.height;
+        devices: root.account-devices;
+        loading: root.devices-loading;
+        login-pending: false;
+        remove-error: root.remove-device-error;
+        remove-device(id) => { root.remove-device(id); }
+        continue-login => { root.login(root.login-account-number); }
+        cancel-login => { root.cancel-login(); }
+        dismiss-remove-error => { root.dismiss-remove-device-error(); }
+        settings => { root.page = "settings"; root.settings-page = 0; }
+    }
+
+    ExpiredAccountSurface {
+        visible: root.page == "expired";
+        x: 0;
+        y: 80px;
+        width: parent.width;
+        height: parent.height - 80px;
+        account-number: root.account-number;
+        device-name: root.device-name;
+        connected: root.connected || root.transitioning;
+        is-new-account: root.login-method == "create";
+        recovery-action: (root.connected || root.transitioning) ? "disconnect" : root.lockdown ? "disable-lockdown" : "open-browser";
+        lockdown-mode: root.lockdown;
+        disconnect => { root.connect-clicked(); }
+        buy-credit => { root.buy-more-credit(); }
+        redeem-voucher => { root.voucher-open = true; root.account-page = "account"; root.page = "account"; }
+        copy-account-number(value) => { root.copy-account-number(value); }
+        set-lockdown-mode(value) => { root.lockdown = value; root.setting-changed("lockdown", value); }
+    }
+
+    DeviceRevokedSurface {
+        visible: root.page == "revoked";
+        x: 0;
+        y: 68px;
+        width: parent.width;
+        height: parent.height - 68px;
+        connected: root.connected || root.transitioning;
+        go-to-login => { root.logout-clicked(); }
+    }
+}

@@ -1,5 +1,5 @@
 {
-  description = "Native GTK4 frontend for the Mullvad VPN daemon";
+  description = "Native Slint frontend for the Mullvad VPN daemon";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -12,30 +12,58 @@
         let pkgs = nixpkgs.legacyPackages.${system};
         in {
           default = pkgs.rustPlatform.buildRustPackage {
-            pname = "mullvad-gtk";
+            pname = "mullvad-gui-slint";
             version = "0.1.0-alpha.1";
             src = self;
 
             cargoLock.lockFile = ./Cargo.lock;
 
-            nativeBuildInputs = with pkgs; [
-              pkg-config
-              wrapGAppsHook4
+            nativeBuildInputs = with pkgs; [ pkg-config ];
+            buildInputs = with pkgs; [
+              libxkbcommon wayland libglvnd libdrm
+              fontconfig freetype
+              libx11 libxcursor libxi libxrandr libxext
             ];
-            buildInputs = with pkgs; [ gtk4 ];
 
             postInstall = ''
-              DESTDIR="$out" PREFIX="" BINARY_PATH=target/release/mullvad-gtk \
-                ./scripts/stage-linux.sh
+              DESTDIR="$out" PREFIX="" SKIP_BINARY_INSTALL=1 \
+                bash ./scripts/stage-linux.sh
             '';
 
             meta = with pkgs.lib; {
-              description = "Native GTK4 frontend for the Mullvad VPN daemon";
-              homepage = "https://github.com/Greenstorm5417/Mullvad-GTK";
+              description = "Native Slint frontend for the Mullvad VPN daemon";
+              homepage = "https://github.com/Greenstorm5417/Mullvad-Gui-Slint";
               license = licenses.gpl3Plus;
-              mainProgram = "mullvad-gtk";
+              mainProgram = "mullvad-gui-slint";
               platforms = supportedSystems;
             };
+          };
+        });
+
+      devShells = forAllSystems (system:
+        let pkgs = nixpkgs.legacyPackages.${system};
+        in {
+          default = pkgs.mkShell {
+            packages = with pkgs; [
+              cargo
+              clippy
+              rustc
+              rustfmt
+              slint-lsp
+            ];
+            nativeBuildInputs = with pkgs; [ pkg-config ];
+            buildInputs = with pkgs; [
+              libxkbcommon wayland libglvnd libdrm
+              fontconfig freetype
+              libx11 libxcursor libxi libxrandr libxext
+            ];
+
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [
+              libxkbcommon wayland libglvnd libdrm
+              libx11 libxcursor libxi libxrandr libxext
+            ]);
+
+            RUST_BACKTRACE = "1";
           };
         });
     };

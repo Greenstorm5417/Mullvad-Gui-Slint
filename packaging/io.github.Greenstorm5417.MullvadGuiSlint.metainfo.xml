@@ -1,24 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.Greenstorm5417.MullvadGTK</id>
-  <name>Mullvad-GTK</name>
-  <developer_name>Greenstorm5417 and contributors</developer_name>
-  <summary>GTK4 frontend for the Mullvad VPN daemon</summary>
+  <id>io.github.Greenstorm5417.MullvadGuiSlint</id>
+  <name>Mullvad-Gui-Slint</name>
+  <developer id="io.github.greenstorm5417">
+    <name>Greenstorm5417 and contributors</name>
+  </developer>
+  <summary>Slint frontend for the Mullvad VPN daemon</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <description>
     <p>A native Linux frontend that controls the installed Mullvad VPN daemon through its management socket.</p>
   </description>
-  <launchable type="desktop-id">mullvad-gtk.desktop</launchable>
+  <launchable type="desktop-id">mullvad-gui-slint.desktop</launchable>
   <provides>
-    <binary>mullvad-gtk</binary>
+    <binary>mullvad-gui-slint</binary>
   </provides>
   <categories>
     <category>Network</category>
+    <category>System</category>
     <category>Security</category>
   </categories>
-  <url type="homepage">https://github.com/Greenstorm5417/Mullvad-GTK</url>
-  <url type="bugtracker">https://github.com/Greenstorm5417/Mullvad-GTK/issues</url>
+  <url type="homepage">https://github.com/Greenstorm5417/Mullvad-Gui-Slint</url>
+  <url type="bugtracker">https://github.com/Greenstorm5417/Mullvad-Gui-Slint/issues</url>
   <releases>
     <release version="0.1.0-alpha.1" date="2026-07-20" type="development"/>
   </releases>

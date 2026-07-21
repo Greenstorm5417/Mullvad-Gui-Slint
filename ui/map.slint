@@ -1,0 +1,36 @@
+export component MullvadMap inherits Rectangle {
+    in property <bool> connected: false;
+    in property <bool> connecting: false;
+    in property <bool> show-marker: true;
+    in property <bool> animate: true;
+    in property <image> disconnected-image: @image-url("../assets/images/map-disconnected.svg");
+    in property <image> connected-image: @image-url("../assets/images/map-connected.svg");
+
+    background: #0a1923;
+    clip: true;
+
+    Image {
+        width: 100%;
+        height: 100%;
+        source: root.disconnected-image;
+        image-fit: fill;
+    }
+
+    spinner := Image {
+        x: (parent.width - self.width) / 2;
+        y: 94px;
+        width: 48px;
+        height: 48px;
+        source: @image-url("../assets/images/spinner.svg");
+        image-fit: contain;
+        visible: root.connecting;
+
+        transform-rotation: root.connecting ? 360deg : 0deg;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        animate transform-rotation {
+            duration: 600ms;
+            iteration-count: -1;
+            easing: linear;
+        }
+    }
+}

@@ -1,6 +1,6 @@
-# Mullvad-GTK
+# Mullvad-Gui-Slint
 
-An independent Rust/GTK4 frontend for the Mullvad VPN daemon on Linux. It uses
+An independent Rust/Slint frontend for the Mullvad VPN daemon on Linux. It uses
 the daemon's gRPC management socket directly and does not invoke or parse the
 `mullvad` CLI.
 
@@ -11,7 +11,7 @@ parity is tracked explicitly in [`docs/parity.md`](docs/parity.md).
 
 The Linux desktop integration includes the animated Mullvad tray icon, tray
 tunnel controls, state notifications, close-to-tray behavior, and XDG
-autostart. Start without presenting the window with `mullvad-gtk --background`.
+autostart. Start without presenting the window with `mullvad-gui-slint --background`.
 When no tray host is available, closing the window exits normally so the app
 cannot become inaccessible. Notification delivery is optional and never
 blocks tunnel control.
@@ -23,13 +23,20 @@ This is an independent frontend, not an official Mullvad VPN application.
 Install Rust and the native build dependencies for your distribution:
 
 ```text
-Debian/Ubuntu: sudo apt install libgtk-4-dev build-essential
-Fedora:        sudo dnf install gtk4-devel gcc
-Arch Linux:    sudo pacman -S gtk4 base-devel
+Debian/Ubuntu: sudo apt install libfontconfig1 libxkbcommon0 build-essential
+Fedora:        sudo dnf install fontconfig libxkbcommon gcc
+Arch Linux:    sudo pacman -S fontconfig libxkbcommon base-devel
 ```
 
 The official Mullvad VPN daemon must be installed and running for the app to
 show state or control the tunnel.
+
+For a reproducible development environment, enter the Nix shell. It includes
+the pinned Rust toolchain, native libraries, and `slint-lsp`:
+
+```sh
+nix develop
+```
 
 ## Run
 
@@ -45,10 +52,11 @@ state:
 ```sh
 cargo test
 cargo fmt --check
+slint-lsp format -i ui/*.slint
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-Controller and daemon integration tests can run without GTK installed:
+Controller and daemon integration tests can run without the Slint UI dependencies:
 
 ```sh
 cargo test --no-default-features
@@ -69,6 +77,11 @@ GitHub supplies the source archives automatically. The repository also exposes
 [`flake.nix`](flake.nix). `protoc` is vendored through Cargo, so CI does not
 depend on a system Protobuf compiler.
 
+Update availability is read from this project's GitHub Releases feed. Stable
+builds ignore prereleases unless the beta program is enabled; alpha, beta, and
+release-candidate builds continue following prereleases automatically. Failure
+to reach GitHub never blocks startup or tunnel control.
+
 A scheduled workflow installs the latest packages from Mullvad's official
 stable and beta Debian repositories, starts `mullvad-daemon` directly, and runs
 the read-only socket tests every day. It never invokes the Mullvad CLI.
@@ -84,8 +97,8 @@ See [`docs/desktop-compatibility.md`](docs/desktop-compatibility.md).
 ## Support
 
 Use the in-app **Support and report an issue** page or the
-[GitHub issue tracker](https://github.com/Greenstorm5417/Mullvad-GTK/issues) for
-Mullvad-GTK bugs. Use [Mullvad support](https://mullvad.net/help) for VPN
+[GitHub issue tracker](https://github.com/Greenstorm5417/Mullvad-Gui-Slint/issues) for
+Mullvad-Gui-Slint bugs. Use [Mullvad support](https://mullvad.net/help) for VPN
 service, billing, and account issues. Never post an account number or voucher.
 
 ## Upstream and license

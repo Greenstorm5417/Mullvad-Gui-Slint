@@ -1,26 +1,27 @@
-pkgname=mullvad-gtk
+pkgname=mullvad-gui-slint
 pkgver=0.1.0_alpha.1
 pkgrel=1
-pkgdesc='Native GTK4 frontend for the Mullvad VPN daemon'
+pkgdesc='Native Slint frontend for the Mullvad VPN daemon'
 arch=('x86_64' 'aarch64')
-url='https://github.com/Greenstorm5417/Mullvad-GTK'
+url='https://github.com/Greenstorm5417/Mullvad-Gui-Slint'
 license=('GPL-3.0-or-later')
-depends=('gtk4')
+depends=('fontconfig' 'libxkbcommon')
+optdepends=('mullvad-vpn: official Mullvad daemon and VPN service')
 makedepends=('cargo' 'rust')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v${pkgver/_/-}.tar.gz")
 sha256sums=('SKIP')
 
 build() {
-  cd "Mullvad-GTK-${pkgver/_/-}"
+  cd "Mullvad-Gui-Slint-${pkgver/_/-}"
   cargo build --locked --release
 }
 
 check() {
-  cd "Mullvad-GTK-${pkgver/_/-}"
+  cd "Mullvad-Gui-Slint-${pkgver/_/-}"
   cargo test --locked --all-features
 }
 
 package() {
-  cd "Mullvad-GTK-${pkgver/_/-}"
+  cd "Mullvad-Gui-Slint-${pkgver/_/-}"
   DESTDIR="$pkgdir" PREFIX=/usr ./scripts/stage-linux.sh
 }

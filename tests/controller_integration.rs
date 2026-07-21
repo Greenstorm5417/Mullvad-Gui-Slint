@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use mullvad_gtk::{
+use mullvad_gui_slint::{
     controller::{Controller, DaemonApi, DaemonCommand, FeatureApi},
     daemon::MullvadDaemon,
     model::TunnelStatus,
@@ -36,6 +36,7 @@ impl DaemonApi for FakeDaemon {
         *self.state.lock().unwrap() = TunnelStatus::Connected {
             location: Some("Gothenburg, SE".to_owned()),
             coordinates: None,
+            details: None,
         };
         Ok(())
     }
@@ -54,6 +55,7 @@ impl DaemonApi for FakeDaemon {
         *self.state.lock().unwrap() = TunnelStatus::Connecting {
             location: Some("Gothenburg, SE".to_owned()),
             coordinates: None,
+            details: None,
         };
         Ok(())
     }

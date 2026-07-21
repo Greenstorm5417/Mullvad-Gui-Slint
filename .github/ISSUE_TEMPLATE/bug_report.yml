@@ -1,4 +1,4 @@
-name: Mullvad-GTK bug
+name: Mullvad-Gui-Slint bug
 description: Report a problem with this GTK application or its packages
 title: "[Bug]: "
 labels: [bug]
@@ -9,7 +9,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Mullvad-GTK version
+      label: Mullvad-Gui-Slint version
       placeholder: 0.1.0-alpha.1
     validations:
       required: true

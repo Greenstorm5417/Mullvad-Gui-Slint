@@ -4,6 +4,17 @@ pub struct GeoCoordinate {
     pub longitude: f64,
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ConnectionDetails {
+    pub hostname: Option<String>,
+    pub entry_hostname: Option<String>,
+    pub in_address: Option<String>,
+    pub out_ipv4: Option<String>,
+    pub out_ipv6: Option<String>,
+    pub protocol: Option<String>,
+    pub features: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum TunnelStatus {
     Unavailable(String),
@@ -14,12 +25,16 @@ pub enum TunnelStatus {
     Connecting {
         location: Option<String>,
         coordinates: Option<GeoCoordinate>,
+        details: Option<ConnectionDetails>,
     },
     Connected {
         location: Option<String>,
         coordinates: Option<GeoCoordinate>,
+        details: Option<ConnectionDetails>,
     },
-    Disconnecting,
+    Disconnecting {
+        reconnecting: bool,
+    },
     Error(String),
 }
 
@@ -54,12 +69,21 @@ impl AppSettings {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AccountExpiry {
+    pub remaining: String,
+    pub paid_until: String,
+    pub expired: bool,
+    pub show_in_header: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AccountStatus {
     LoggedOut,
     LoggedIn {
         account_number: String,
+        device_id: String,
         device_name: String,
-        expiry: Option<String>,
+        expiry: Option<AccountExpiry>,
     },
     Revoked,
 }
@@ -68,6 +92,7 @@ pub enum AccountStatus {
 pub struct DeviceSummary {
     pub id: String,
     pub name: String,
+    pub created: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -76,11 +101,78 @@ pub struct RelayLocation {
     pub country_code: String,
     pub city_code: Option<String>,
     pub hostname: Option<String>,
+    pub custom_list_id: Option<String>,
+    pub depth: u8,
+    pub provider: Option<String>,
+    pub owned: Option<bool>,
+    pub daita: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RelayRole {
+    Entry,
+    Exit,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OwnershipFilter {
+    Any,
+    MullvadOwned,
+    Rented,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CustomListSummary {
+    pub id: String,
+    pub name: String,
+    pub locations: Vec<RelayLocation>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct LocationSettings {
+    pub relays: Vec<RelayLocation>,
+    pub recents: Vec<RelayLocation>,
+    pub custom_lists: Vec<CustomListSummary>,
+    pub providers: Vec<String>,
+    pub recents_enabled: bool,
+    pub selected_entry: Option<RelayLocation>,
+    pub selected_exit: Option<RelayLocation>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SplitTunnelState {
+    pub enabled: bool,
+    pub applications: Vec<String>,
     pub process_ids: Vec<i32>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IpVersionMode {
+    Automatic,
+    Ipv4,
+    Ipv6,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RelayOverride {
+    pub hostname: String,
+    pub ipv4: Option<String>,
+    pub ipv6: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApiAccessMethodSummary {
+    pub id: String,
+    pub name: String,
+    pub enabled: bool,
+    pub in_use: bool,
+    pub custom: bool,
+    pub proxy_type: i32,
+    pub server: String,
+    pub port: String,
+    pub username: String,
+    pub password: String,
+    pub cipher: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -120,10 +212,20 @@ pub struct AdvancedSettings {
     pub block_social_media: bool,
     pub block_trackers: bool,
     pub daita: bool,
+    pub custom_dns_enabled: bool,
+    pub custom_dns_addresses: Vec<String>,
+    pub ip_version: IpVersionMode,
+    pub allowed_ips: Vec<String>,
     pub mtu: Option<u32>,
     pub multihop: MultihopMode,
     pub obfuscation: ObfuscationMode,
+    pub wireguard_port: Option<u32>,
+    pub udp_over_tcp_port: Option<u32>,
+    pub shadowsocks_port: Option<u32>,
+    pub lwo_port: Option<u32>,
     pub quantum_resistant: bool,
+    pub relay_overrides: Vec<RelayOverride>,
+    pub userspace_wireguard: bool,
 }
 
 impl AdvancedSettings {
@@ -146,7 +248,10 @@ impl TunnelStatus {
             Self::Disconnected { .. } => "DISCONNECTED",
             Self::Connecting { .. } => "CONNECTING...",
             Self::Connected { .. } => "CONNECTED",
-            Self::Disconnecting => "DISCONNECTING...",
+            Self::Disconnecting { reconnecting: true } => "RECONNECTING...",
+            Self::Disconnecting {
+                reconnecting: false,
+            } => "DISCONNECTING...",
             Self::Error(_) => "FAILED TO SECURE CONNECTION",
         }
     }
@@ -159,7 +264,10 @@ impl TunnelStatus {
             | Self::Connected { location, .. } => location
                 .clone()
                 .unwrap_or_else(|| "Location unavailable".to_owned()),
-            Self::Disconnecting => "Closing the VPN tunnel".to_owned(),
+            Self::Disconnecting { reconnecting: true } => "Reconnecting".to_owned(),
+            Self::Disconnecting {
+                reconnecting: false,
+            } => "Closing the VPN tunnel".to_owned(),
         }
     }
 
@@ -169,7 +277,7 @@ impl TunnelStatus {
             Self::Connecting { .. } => "Cancel",
             Self::Unavailable(_)
             | Self::Disconnected { .. }
-            | Self::Disconnecting
+            | Self::Disconnecting { .. }
             | Self::Error(_) => "Connect",
         }
     }
@@ -179,13 +287,13 @@ impl TunnelStatus {
     }
 
     pub fn is_busy(&self) -> bool {
-        matches!(self, Self::Connecting { .. } | Self::Disconnecting)
+        matches!(self, Self::Connecting { .. } | Self::Disconnecting { .. })
     }
 
     pub fn style_class(&self) -> &'static str {
         match self {
             Self::Connected { .. } => "connected",
-            Self::Connecting { .. } | Self::Disconnecting => "transitioning",
+            Self::Connecting { .. } | Self::Disconnecting { .. } => "transitioning",
             Self::Disconnected { .. } | Self::Unavailable(_) | Self::Error(_) => "disconnected",
         }
     }
@@ -195,7 +303,7 @@ impl TunnelStatus {
             Self::Disconnected { coordinates, .. }
             | Self::Connecting { coordinates, .. }
             | Self::Connected { coordinates, .. } => *coordinates,
-            Self::Unavailable(_) | Self::Disconnecting | Self::Error(_) => None,
+            Self::Unavailable(_) | Self::Disconnecting { .. } | Self::Error(_) => None,
         }
     }
 }

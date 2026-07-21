@@ -1,0 +1,1696 @@
+import { ListView } from "std-widgets.slint";
+import { ThinScrollbar } from "scrollbar.slint";
+import "../assets/fonts/OpenSans-Regular.ttf";
+import "../assets/fonts/OpenSans-Semibold.ttf";
+import "../assets/fonts/OpenSans-Bold.ttf";
+import "../assets/fonts/SourceSansPro-SemiBold.ttf";
+import "../assets/fonts/SourceSansPro-Bold.ttf";
+
+export struct AccountDevice {
+    id: string,
+    name: string,
+    created: string,
+    is-current: bool,
+    deleting: bool,
+}
+
+global AccountPalette {
+    out property <color> white: #ffffff;
+    out property <color> white-80: #ffffffcc;
+    out property <color> white-60: #ffffff99;
+    out property <color> white-40: #ffffff66;
+    out property <color> white-20: #ffffff33;
+    out property <color> dark-blue: #192e45;
+    out property <color> blue: #294d73;
+    out property <color> blue-hover: #234161;
+    out property <color> blue-pressed: #1f3a57;
+    out property <color> green: #44ad4d;
+    out property <color> green-hover: #3b944b;
+    out property <color> green-pressed: #2a6148;
+    out property <color> red: #e34039;
+    out property <color> red-hover: #bb3c3b;
+    out property <color> red-pressed: #6a3540;
+}
+
+component AccountIconButton inherits Rectangle {
+    in property <image> icon;
+    in property <bool> enabled: true;
+    callback clicked;
+    width: 24px;
+    height: 24px;
+    border-radius: 12px;
+    background: touch.pressed ? AccountPalette.white-20 : transparent;
+    opacity: root.enabled ? 1 : 0.4;
+
+    Image {
+        width: 24px;
+        height: 24px;
+        source: root.icon;
+        image-fit: contain;
+        opacity: touch.pressed ? 1 : touch.has-hover ? 0.8 : 0.6;
+        animate opacity {
+            duration: 150ms;
+            easing: ease;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+component AccountButton inherits Rectangle {
+    in property <string> text;
+    in property <string> variant: "primary";
+    in property <bool> enabled: true;
+    in property <image> trailing-icon;
+    callback clicked;
+    height: 32px;
+    border-radius: 4px;
+    background: root.variant == "success"
+        ? (!root.enabled ? AccountPalette.green-pressed : touch.pressed ? AccountPalette.green-pressed : touch.has-hover ? AccountPalette.green-hover : AccountPalette.green)
+        : root.variant == "destructive"
+        ? (!root.enabled ? AccountPalette.red-pressed : touch.pressed ? AccountPalette.red-pressed : touch.has-hover ? AccountPalette.red-hover : AccountPalette.red)
+        : (!root.enabled ? AccountPalette.blue-pressed : touch.pressed ? AccountPalette.blue-pressed : touch.has-hover ? AccountPalette.blue-hover : AccountPalette.blue);
+
+    Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.text;
+        color: root.enabled ? AccountPalette.white : AccountPalette.white-40;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    Image {
+        visible: root.trailing-icon.width > 0;
+        x: parent.width - 32px;
+        y: 4px;
+        width: 24px;
+        height: 24px;
+        source: root.trailing-icon;
+        image-fit: contain;
+        opacity: root.enabled ? 1 : 0.4;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+component AccountNavigationHeader inherits Rectangle {
+    in property <string> title;
+    in property <bool> title-visible: false;
+    // Top-level pages opened directly from main ("show" transitions) close with
+    // a downward chevron; pages pushed within a section go back with a leftward one.
+    in property <bool> close: false;
+    callback back;
+    height: 48px;
+    background: AccountPalette.dark-blue;
+
+    AccountIconButton {
+        x: 16px;
+        y: (root.height - 24px) / 2;
+        icon: root.close ? @image-url("../assets/icons/icon-chevron-down-circle.svg") : @image-url("../assets/icons/icon-chevron-left-circle.svg");
+        clicked => { root.back(); }
+    }
+
+    Text {
+        x: 48px;
+        y: (root.height - 24px) / 2;
+        width: parent.width - 96px;
+        height: 24px;
+        text: root.title;
+        color: AccountPalette.white;
+        font-family: "Source Sans Pro";
+        font-size: 18px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+        opacity: root.title-visible ? 1 : 0;
+        animate opacity {
+            duration: 250ms;
+            easing: ease-in-out;
+        }
+    }
+}
+
+component LabelledValue inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <bool> alert: false;
+    height: 42px;
+
+    Text {
+        width: parent.width;
+        height: 18px;
+        text: root.label;
+        color: AccountPalette.white-60;
+        font-family: "Open Sans";
+        font-size: 12px;
+        font-weight: 400;
+        vertical-alignment: center;
+    }
+
+    Text {
+        y: 22px;
+        width: parent.width;
+        height: 20px;
+        text: root.value;
+        color: root.alert ? AccountPalette.red : AccountPalette.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+component AccountNumberValue inherits Rectangle {
+    in property <string> account-number;
+    in-out property <bool> obscured: true;
+    in-out property <bool> just-copied: false;
+    callback copy(string);
+    height: 42px;
+
+    Timer {
+        interval: 2s;
+        running: root.just-copied;
+        triggered => { root.just-copied = false; }
+    }
+
+    Text {
+        width: parent.width;
+        height: 18px;
+        text: "Account number";
+        color: AccountPalette.white-60;
+        font-family: "Open Sans";
+        font-size: 12px;
+        font-weight: 400;
+        vertical-alignment: center;
+    }
+
+    Text {
+        y: 22px;
+        width: parent.width - 64px;
+        height: 20px;
+        text: root.obscured ? "●●●● ●●●● ●●●● ●●●●" : root.account-number;
+        color: AccountPalette.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    AccountIconButton {
+        x: parent.width - 56px;
+        y: 20px;
+        icon: root.obscured ? @image-url("../assets/icons/icon-show.svg") : @image-url("../assets/icons/icon-hide.svg");
+        clicked => { root.obscured = !root.obscured; }
+    }
+
+    AccountIconButton {
+        x: parent.width - 24px;
+        y: 20px;
+        icon: root.just-copied ? @image-url("../assets/icons/icon-checkmark.svg") : @image-url("../assets/icons/icon-copy.svg");
+        clicked => {
+            root.just-copied = true;
+            root.copy(root.account-number);
+        }
+    }
+}
+
+component DeviceNameValue inherits Rectangle {
+    in property <string> value;
+    callback manage;
+    height: 42px;
+
+    Text {
+        width: parent.width;
+        height: 18px;
+        text: "Device name";
+        color: AccountPalette.white-60;
+        font-family: "Open Sans";
+        font-size: 12px;
+        vertical-alignment: center;
+    }
+
+    Text {
+        y: 22px;
+        width: parent.width - 120px;
+        height: 20px;
+        text: root.value;
+        color: AccountPalette.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    Text {
+        x: parent.width - 112px;
+        y: 22px;
+        width: 112px;
+        height: 20px;
+        text: "Manage devices";
+        color: link-touch.pressed ? AccountPalette.green-pressed : link-touch.has-hover ? AccountPalette.green-hover : AccountPalette.green;
+        font-family: "Open Sans";
+        font-size: 12px;
+        font-weight: 600;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+
+    link-touch := TouchArea {
+        x: parent.width - 112px;
+        y: 18px;
+        width: 112px;
+        height: 24px;
+        clicked => { root.manage(); }
+    }
+}
+
+component AccountTextField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> enabled: true;
+    in property <bool> error: false;
+    in property <bool> voucher: false;
+    callback edited(string);
+    callback accepted(string);
+    height: root.voucher ? 54px : 48px;
+    border-radius: root.voucher ? 4px : 8px;
+    border-width: root.voucher ? 0px : 2px;
+    border-color: root.error ? AccountPalette.red-pressed : input.has-focus ? AccountPalette.dark-blue : transparent;
+    background: AccountPalette.white;
+
+    Text {
+        visible: root.text == "";
+        x: 12px;
+        width: parent.width - 24px;
+        height: parent.height;
+        text: root.placeholder;
+        color: #a9b8c7;
+        font-family: root.voucher ? "Open Sans" : "Source Sans Pro";
+        font-size: root.voucher ? 15px : 18px;
+        font-weight: root.voucher ? 600 : 700;
+        vertical-alignment: center;
+    }
+
+    input := TextInput {
+        x: 12px;
+        width: parent.width - 24px;
+        height: parent.height;
+        text <=> root.text;
+        enabled: root.enabled;
+        single-line: true;
+        color: AccountPalette.dark-blue;
+        selection-foreground-color: AccountPalette.white;
+        selection-background-color: AccountPalette.blue;
+        font-family: root.voucher ? "Open Sans" : "Source Sans Pro";
+        font-size: root.voucher ? 15px : 18px;
+        font-weight: root.voucher ? 600 : 700;
+        vertical-alignment: center;
+        edited => { root.edited(self.text); }
+        accepted => { root.accepted(self.text); }
+    }
+}
+
+component ModalPanel inherits Rectangle {
+    in property <string> title;
+    in property <string> body;
+    in property <string> detail;
+    in property <string> primary-text;
+    in property <string> secondary-text: "Back";
+    in property <string> primary-variant: "primary";
+    in property <bool> busy: false;
+    callback primary;
+    callback secondary;
+    width: 288px;
+    height: detail == "" ? 184px : 218px;
+    background: AccountPalette.dark-blue;
+    border-radius: 12px;
+
+    VerticalLayout {
+        x: 16px;
+        y: 16px;
+        width: parent.width - 32px;
+        height: parent.height - 32px;
+        spacing: 12px;
+        Text {
+            text: root.title;
+            color: AccountPalette.white;
+            font-family: "Source Sans Pro";
+            font-size: 20px;
+            font-weight: 700;
+            wrap: word-wrap;
+        }
+
+        Text {
+            text: root.body;
+            color: AccountPalette.white;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+            wrap: word-wrap;
+        }
+
+        Text {
+            visible: root.detail != "";
+            text: root.detail;
+            color: AccountPalette.white-60;
+            font-family: "Open Sans";
+            font-size: 12px;
+            font-weight: 600;
+            wrap: word-wrap;
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+        }
+
+        AccountButton {
+            text: root.busy ? "Please wait..." : root.primary-text;
+            variant: root.primary-variant;
+            enabled: !root.busy;
+            clicked => { root.primary(); }
+        }
+
+        AccountButton {
+            visible: root.secondary-text != "";
+            text: root.secondary-text;
+            enabled: !root.busy;
+            clicked => { root.secondary(); }
+        }
+    }
+}
+
+component LoggedInAccountView inherits Rectangle {
+    in property <string> device-name;
+    in property <string> account-number;
+    in property <string> paid-until;
+    in property <bool> paid-until-expired;
+    in property <bool> offline;
+    in-out property <bool> voucher-open;
+    in-out property <string> voucher-code;
+    in property <string> voucher-state;
+    in property <string> voucher-result-detail;
+    in property <bool> voucher-code-valid;
+    in property <bool> voucher-code-is-account-number;
+    in property <bool> navigation-title-visible;
+    callback back;
+    callback manage-devices;
+    callback copy-account-number(string);
+    callback buy-more-credit;
+    callback redeem-voucher(string);
+    callback voucher-code-edited(string);
+    callback dismiss-voucher;
+    callback logout;
+    background: AccountPalette.dark-blue;
+
+    AccountNavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "Account";
+        title-visible: root.navigation-title-visible;
+        close: true;
+        back => { root.back(); }
+    }
+
+    Text {
+        x: 16px;
+        y: 64px;
+        width: parent.width - 32px;
+        height: 34px;
+        text: "Account";
+        color: AccountPalette.white;
+        font-family: "Source Sans Pro";
+        font-size: 32px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    DeviceNameValue {
+        x: 16px;
+        y: 114px;
+        width: parent.width - 32px;
+        value: root.device-name;
+        manage => { root.manage-devices(); }
+    }
+
+    AccountNumberValue {
+        x: 16px;
+        y: 180px;
+        width: parent.width - 32px;
+        account-number: root.account-number;
+        copy(value) => { root.copy-account-number(value); }
+    }
+
+    LabelledValue {
+        x: 16px;
+        y: 246px;
+        width: parent.width - 32px;
+        label: "Paid until";
+        value: root.paid-until;
+        alert: root.paid-until-expired;
+    }
+
+    VerticalLayout {
+        x: 16px;
+        y: parent.height - 168px;
+        width: parent.width - 32px;
+        height: 144px;
+        spacing: 16px;
+        AccountButton {
+            text: "Buy more credit";
+            variant: "success";
+            trailing-icon: @image-url("../assets/icons/icon-external.svg");
+            enabled: !root.offline;
+            clicked => { root.buy-more-credit(); }
+        }
+
+        AccountButton {
+            text: "Redeem voucher";
+            variant: "success";
+            clicked => {
+                root.voucher-code = "";
+                root.voucher-open = true;
+            }
+        }
+
+        AccountButton {
+            text: "Log out";
+            variant: "destructive";
+            clicked => { root.logout(); }
+        }
+    }
+
+    voucher-overlay := Rectangle {
+        visible: root.voucher-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea { }
+
+        Rectangle {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            width: parent.width - 32px;
+            height: root.voucher-state == "invalid" && root.voucher-code-is-account-number ? 320px : 252px;
+            border-radius: 12px;
+            background: AccountPalette.dark-blue;
+
+            Text {
+                x: 16px;
+                y: 16px;
+                width: parent.width - 32px;
+                height: 18px;
+                text: root.voucher-state == "success" ? "Voucher redeemed" : "Enter voucher code";
+                color: AccountPalette.white;
+                font-family: "Source Sans Pro";
+                font-size: 20px;
+                font-weight: 700;
+            }
+
+            if root.voucher-state == "success": Text {
+                x: 16px;
+                y: 50px;
+                width: parent.width - 32px;
+                height: 86px;
+                text: "Voucher was successfully redeemed.\n" + root.voucher-result-detail;
+                color: AccountPalette.white;
+                font-family: "Open Sans";
+                font-size: 14px;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+            if root.voucher-state != "success": AccountTextField {
+                x: 16px;
+                y: 50px;
+                width: parent.width - 32px;
+                text <=> root.voucher-code;
+                placeholder: "XXXX-XXXX-XXXX-XXXX";
+                voucher: true;
+                enabled: root.voucher-state != "submitting";
+                edited(value) => { root.voucher-code-edited(value); }
+                accepted(value) => {
+                    if (root.voucher-code-valid) { root.redeem-voucher(value); }
+                }
+            }
+            Text {
+                visible: root.voucher-state != "idle" && root.voucher-state != "success";
+                x: 16px;
+                y: 106px;
+                width: parent.width - 32px;
+                height: 48px;
+                text: root.voucher-state == "submitting" ? "Verifying voucher..."
+                    : root.voucher-state == "invalid" ? "Voucher code is invalid."
+                    : root.voucher-state == "used" ? "Voucher code has already been used."
+                    : root.voucher-state == "already_used" ? "Voucher code has already been used."
+                    : "An error occurred.";
+                color: root.voucher-state == "submitting" ? AccountPalette.white-60 : AccountPalette.red;
+                font-family: "Open Sans";
+                font-size: 12px;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+
+            Text {
+                visible: root.voucher-state == "invalid" && root.voucher-code-is-account-number;
+                x: 16px;
+                y: 128px;
+                width: parent.width - 32px;
+                height: 52px;
+                text: "It looks like you've entered an account number instead of a voucher code. If you would like to change the active account, please log out first.";
+                color: AccountPalette.white;
+                font-family: "Open Sans";
+                font-size: 12px;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+
+            AccountButton {
+                x: 16px;
+                y: parent.height - 88px;
+                width: parent.width - 32px;
+                text: root.voucher-state == "success" ? "Got it!" : root.voucher-state == "submitting" ? "Verifying voucher..." : "Redeem";
+                variant: "success";
+                enabled: root.voucher-state == "success" || (root.voucher-state != "submitting" && root.voucher-code-valid);
+                clicked => {
+                    if (root.voucher-state == "success") {
+                        root.voucher-open = false;
+                        root.dismiss-voucher();
+                    } else {
+                        root.redeem-voucher(root.voucher-code);
+                    }
+                }
+            }
+
+            AccountButton {
+                visible: root.voucher-state != "success";
+                x: 16px;
+                y: parent.height - 48px;
+                width: parent.width - 32px;
+                text: "Cancel";
+                enabled: root.voucher-state != "submitting";
+                clicked => {
+                    root.voucher-open = false;
+                    root.dismiss-voucher();
+                }
+            }
+        }
+    }
+}
+
+component ManageDevicesView inherits Rectangle {
+    in property <[AccountDevice]> devices;
+    in property <bool> loading;
+    in property <string> error;
+    in-out property <string> pending-remove-id;
+    in-out property <string> pending-remove-name;
+    in property <string> remove-error;
+    in property <bool> navigation-title-visible;
+    callback back;
+    callback retry;
+    callback remove-device(string);
+    callback dismiss-remove-error;
+    background: AccountPalette.dark-blue;
+
+    AccountNavigationHeader {
+        x: 0;
+        y: 0;
+        z: 10;
+        width: parent.width;
+        title: "Manage devices";
+        title-visible: root.navigation-title-visible;
+        back => { root.back(); }
+    }
+
+    Text {
+        x: 16px;
+        y: 64px;
+        width: parent.width - 32px;
+        height: 34px;
+        text: "Manage devices";
+        color: AccountPalette.white;
+        font-family: "Source Sans Pro";
+        font-size: 32px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    Text {
+        x: 16px;
+        y: 106px;
+        width: parent.width - 32px;
+        height: 72px;
+        text: "View and manage all your logged in devices. You can have up to 5 devices on one account at a time. Each device gets a name when logged in to help you tell them apart easily.";
+        color: AccountPalette.white-60;
+        font-family: "Open Sans";
+        font-size: 12px;
+        font-weight: 400;
+        wrap: word-wrap;
+    }
+
+    Text {
+        visible: root.loading || root.error != "" || root.devices.length == 0;
+        x: 16px;
+        y: 202px;
+        width: parent.width - 32px;
+        height: 48px;
+        text: root.loading ? "Loading devices..." : root.error != "" ? root.error : "Failed to fetch list of devices";
+        color: root.error != "" ? AccountPalette.red : AccountPalette.white-60;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        wrap: word-wrap;
+    }
+
+    AccountButton {
+        visible: !root.loading && (root.error != "" || root.devices.length == 0);
+        x: 16px;
+        y: 258px;
+        width: parent.width - 32px;
+        text: "Try again";
+        clicked => { root.retry(); }
+    }
+
+    devices-list := ListView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        visible: !root.loading && root.error == "";
+        x: 16px;
+        y: 194px;
+        width: parent.width - 32px;
+        height: parent.height - 218px;
+        for device[index] in root.devices: Rectangle {
+            height: 51px;
+            background: AccountPalette.blue;
+            border-radius: 16px;
+            opacity: device.deleting ? 0.4 : 1;
+
+            Text {
+                x: 16px;
+                y: 8px;
+                width: parent.width - 72px;
+                height: 20px;
+                text: device.name;
+                color: AccountPalette.white;
+                font-family: "Open Sans";
+                font-size: 14px;
+                font-weight: 600;
+                overflow: elide;
+            }
+
+            Text {
+                x: 16px;
+                y: 28px;
+                width: parent.width - 72px;
+                height: 15px;
+                text: "Created: " + device.created;
+                color: AccountPalette.white-60;
+                font-family: "Open Sans";
+                font-size: 10px;
+                font-weight: 600;
+                overflow: elide;
+            }
+
+            Text {
+                visible: device.is-current;
+                x: parent.width - 112px;
+                y: 16px;
+                width: 96px;
+                height: 18px;
+                text: "Current device";
+                color: AccountPalette.white-60;
+                font-family: "Open Sans";
+                font-size: 12px;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+
+            if !device.is-current: AccountIconButton {
+                x: parent.width - 40px;
+                y: 13px;
+                icon: @image-url("../assets/icons/icon-cross-circle.svg");
+                enabled: !device.deleting;
+                clicked => {
+                    root.pending-remove-id = device.id;
+                    root.pending-remove-name = device.name;
+                }
+            }
+        }
+    }
+
+    ThinScrollbar {
+        x: devices-list.x + devices-list.width - 12px;
+        y: devices-list.y;
+        width: 12px;
+        height: devices-list.height;
+        content-height: devices-list.viewport-height;
+        visible-height: devices-list.visible-height;
+        scroll-y <=> devices-list.viewport-y;
+    }
+
+    remove-device-overlay := Rectangle {
+        visible: root.pending-remove-id != "";
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea { }
+
+        ModalPanel {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            title: "Remove " + root.pending-remove-name + "?";
+            body: "The device will be removed from the list and logged out.";
+            detail: "";
+            primary-text: "Remove";
+            primary-variant: "destructive";
+            secondary-text: "Back";
+            primary => { root.remove-device(root.pending-remove-id); }
+            secondary => {
+                root.pending-remove-id = "";
+                root.pending-remove-name = "";
+            }
+        }
+    }
+
+    remove-error-overlay := Rectangle {
+        visible: root.remove-error != "";
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea { }
+
+        ModalPanel {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            title: "Failed to remove device";
+            body: root.remove-error;
+            primary-text: "Got it!";
+            secondary-text: "";
+            primary => { root.dismiss-remove-error(); }
+            secondary => { root.dismiss-remove-error(); }
+        }
+    }
+}
+
+component LoginAccountView inherits Rectangle {
+    in-out property <string> account-number;
+    in property <bool> account-number-valid;
+    in property <string> state;
+    in property <string> method: "existing";
+    in property <string> error-message;
+    in property <bool> has-account-history;
+    in property <string> saved-account-number;
+    in-out property <bool> create-confirm-open;
+    in-out property <bool> clear-history-confirm-open;
+    callback account-number-edited(string);
+    callback login(string);
+    callback create-account;
+    callback select-saved-account(string);
+    callback clear-account-history;
+    callback settings;
+    private property <float> spinner-angle: 0;
+    background: AccountPalette.dark-blue;
+
+    Timer {
+        interval: 16ms;
+        running: root.state == "submitting" || root.state == "upgrading";
+        triggered => { root.spinner-angle = root.spinner-angle + 8; }
+    }
+
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: 68px;
+        background: AccountPalette.red;
+        Image {
+            x: 16px;
+            y: 15px;
+            width: 38px;
+            height: 38px;
+            source: @image-url("../assets/images/logo-icon.svg");
+            image-fit: contain;
+        }
+
+        Image {
+            x: 62px;
+            y: 26px;
+            width: 142px;
+            height: 16px;
+            source: @image-url("../assets/images/logo-text.svg");
+            image-fit: contain;
+        }
+
+        AccountIconButton {
+            x: parent.width - 40px;
+            y: 22px;
+            icon: @image-url("../assets/icons/icon-settings-filled.svg");
+            enabled: root.state == "idle" || root.state == "error";
+            clicked => { root.settings(); }
+        }
+    }
+
+    VerticalLayout {
+        x: 16px;
+        y: 116px;
+        width: parent.width - 32px;
+        height: 328px;
+        spacing: 12px;
+        Rectangle {
+            height: 48px;
+            background: transparent;
+            Image {
+                visible: root.state == "submitting" || root.state == "upgrading" || root.state == "success" || root.state == "error";
+                x: (parent.width - 48px) / 2;
+                width: 48px;
+                height: 48px;
+                source: root.state == "success" ? @image-url("../assets/images/positive.svg")
+                    : root.state == "error" ? @image-url("../assets/images/negative.svg")
+                    : @image-url("../assets/images/spinner.svg");
+                image-fit: contain;
+                transform-rotation: root.state == "submitting" || root.state == "upgrading" ? root.spinner-angle * 1deg : 0deg;
+                transform-origin: { x: self.width / 2, y: self.height / 2 };
+            }
+        }
+
+        Text {
+            text: root.state == "upgrading" ? "Upgrading..."
+                : root.state == "submitting" || root.state == "too-many-devices" ? (root.method == "create" ? "Creating account..." : "Logging in...")
+                : root.state == "error" ? (root.method == "create" ? "Error" : "Login failed")
+                : root.state == "success" ? (root.method == "create" ? "Account created" : "Logged in")
+                : "Login";
+            color: AccountPalette.white;
+            font-family: "Source Sans Pro";
+            font-size: 32px;
+            font-weight: 700;
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: root.state == "upgrading" ? "Finishing upgrade."
+                : root.error-message != "" ? root.error-message
+                : root.state == "submitting" ? (root.method == "create" ? "Please wait" : "Checking account number")
+                : root.state == "too-many-devices" ? "Too many devices"
+                : root.state == "success" ? (root.method == "create" ? "Logged in" : "Valid account number")
+                : "Enter your account number";
+            color: AccountPalette.white-60;
+            font-family: "Open Sans";
+            font-size: 12px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+
+        AccountTextField {
+            text <=> root.account-number;
+            placeholder: "0000 0000 0000 0000";
+            enabled: root.state == "idle" || root.state == "error";
+            error: root.state == "error" && root.method == "existing";
+            edited(value) => { root.account-number-edited(value); }
+            accepted(value) => { if (root.account-number-valid) { root.login(value); } }
+        }
+
+        if root.saved-account-number != "" && (root.state == "idle" || root.state == "error"): Rectangle {
+            height: 48px;
+            background: AccountPalette.white-60;
+            Text {
+                x: 16px;
+                width: parent.width - 64px;
+                height: parent.height;
+                text: root.saved-account-number;
+                color: #26476a;
+                font-family: "Source Sans Pro";
+                font-size: 18px;
+                font-weight: 600;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            saved-touch := TouchArea {
+                width: parent.width - 48px;
+                height: parent.height;
+                clicked => { root.select-saved-account(root.saved-account-number); }
+            }
+
+            Rectangle {
+                x: parent.width - 48px;
+                width: 48px;
+                height: 48px;
+                background: forget-touch.pressed ? AccountPalette.white-40 : forget-touch.has-hover ? AccountPalette.white-40 : AccountPalette.white-60;
+                Image {
+                    x: 12px;
+                    y: 12px;
+                    width: 24px;
+                    height: 24px;
+                    source: @image-url("../assets/icons/icon-cross-circle.svg");
+                    image-fit: contain;
+                }
+
+                forget-touch := TouchArea {
+                    clicked => { root.clear-history-confirm-open = true; }
+                }
+            }
+        }
+        AccountButton {
+            text: root.state == "submitting" ? "Logging in..." : "Login";
+            variant: "success";
+            enabled: root.account-number-valid && (root.state == "idle" || root.state == "error");
+            clicked => { root.login(root.account-number); }
+        }
+
+        HorizontalLayout {
+            alignment: center;
+            spacing: 8px;
+            Rectangle {
+                height: 1px;
+                background: AccountPalette.white-20;
+                horizontal-stretch: 1;
+            }
+
+            Text {
+                text: "Or";
+                color: AccountPalette.white-60;
+                font-family: "Open Sans";
+                font-size: 12px;
+            }
+
+            Rectangle {
+                height: 1px;
+                background: AccountPalette.white-20;
+                horizontal-stretch: 1;
+            }
+        }
+
+        Text {
+            text: "Create a new account";
+            color: create-touch.pressed ? AccountPalette.green-pressed : create-touch.has-hover ? AccountPalette.green-hover : AccountPalette.green;
+            font-family: "Open Sans";
+            font-size: 14px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        create-touch := TouchArea {
+            height: 28px;
+            clicked => {
+                if (root.has-account-history) { root.create-confirm-open = true; }
+                else { root.create-account(); }
+            }
+        }
+    }
+
+    create-confirm-overlay := Rectangle {
+        visible: root.create-confirm-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea { }
+
+        ModalPanel {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            title: "Create a new account?";
+            body: "You already have a saved account number, by creating a new account the saved account number will be removed from this device. This cannot be undone.";
+            detail: "Do you want to create a new account?";
+            primary-text: "Create new account";
+            primary-variant: "success";
+            secondary-text: "Cancel";
+            primary => {
+                root.create-confirm-open = false;
+                root.create-account();
+            }
+            secondary => { root.create-confirm-open = false; }
+        }
+    }
+
+    clear-history-overlay := Rectangle {
+        visible: root.clear-history-confirm-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea { }
+
+        ModalPanel {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            title: "Remove saved account?";
+            body: "Removing the saved account number from this device cannot be undone.";
+            detail: "Do you want to remove the saved account number?";
+            primary-text: "Remove";
+            primary-variant: "destructive";
+            secondary-text: "Cancel";
+            primary => {
+                root.clear-history-confirm-open = false;
+                root.clear-account-history();
+            }
+            secondary => { root.clear-history-confirm-open = false; }
+        }
+    }
+}
+
+export component AccountSurface inherits Rectangle {
+    in-out property <string> page: "account";
+    in property <string> device-name;
+    in property <string> account-number;
+    in property <string> paid-until;
+    in property <bool> paid-until-expired;
+    in property <bool> offline;
+    in property <[AccountDevice]> devices;
+    in property <bool> devices-loading;
+    in property <string> devices-error;
+    in property <string> remove-device-error;
+    in-out property <string> login-account-number;
+    in property <bool> login-account-number-valid;
+    in property <string> login-state;
+    in property <string> login-method: "existing";
+    in property <string> login-error-message;
+    in property <bool> has-account-history;
+    in property <string> saved-account-number;
+    in-out property <string> voucher-state: "idle";
+    in property <string> voucher-result-detail;
+    in property <bool> voucher-code-valid;
+    in property <bool> voucher-code-is-account-number;
+    in property <bool> navigation-title-visible;
+    in-out property <bool> voucher-open: false;
+
+    callback back;
+    callback copy-account-number(string);
+    callback buy-more-credit;
+    callback redeem-voucher(string);
+    callback voucher-code-edited(string);
+    callback dismiss-voucher;
+    callback logout;
+    callback refresh-devices;
+    callback remove-device(string);
+    callback dismiss-remove-device-error;
+    callback login-account-number-edited(string);
+    callback login(string);
+    callback create-account;
+    callback select-saved-account(string);
+    callback clear-account-history;
+    callback cancel-login;
+    callback settings;
+
+    private property <string> voucher-code: "";
+    private property <string> pending-remove-id: "";
+    private property <string> pending-remove-name: "";
+    private property <bool> create-confirm-open: false;
+    private property <bool> clear-history-confirm-open: false;
+    background: AccountPalette.dark-blue;
+
+    if root.page == "account": LoggedInAccountView {
+        device-name: root.device-name;
+        account-number: root.account-number;
+        paid-until: root.paid-until;
+        paid-until-expired: root.paid-until-expired;
+        offline: root.offline;
+        voucher-open <=> root.voucher-open;
+        voucher-code <=> root.voucher-code;
+        voucher-state: root.voucher-state;
+        voucher-result-detail: root.voucher-result-detail;
+        voucher-code-valid: root.voucher-code-valid;
+        voucher-code-is-account-number: root.voucher-code-is-account-number;
+        navigation-title-visible: root.navigation-title-visible;
+        back => { root.back(); }
+        manage-devices => {
+            root.page = "devices";
+            root.refresh-devices();
+        }
+        copy-account-number(value) => { root.copy-account-number(value); }
+        buy-more-credit => { root.buy-more-credit(); }
+        redeem-voucher(code) => { root.redeem-voucher(code); }
+        voucher-code-edited(code) => { root.voucher-code-edited(code); }
+        dismiss-voucher => { root.dismiss-voucher(); }
+        logout => { root.logout(); }
+    }
+    if root.page == "devices" && root.login-state != "too-many-devices": ManageDevicesView {
+        devices: root.devices;
+        loading: root.devices-loading;
+        error: root.devices-error;
+        remove-error: root.remove-device-error;
+        navigation-title-visible: root.navigation-title-visible;
+        pending-remove-id <=> root.pending-remove-id;
+        pending-remove-name <=> root.pending-remove-name;
+        back => { root.page = root.login-state == "too-many-devices" ? "login" : "account"; }
+        retry => { root.refresh-devices(); }
+        remove-device(id) => { root.remove-device(id); }
+        dismiss-remove-error => { root.dismiss-remove-device-error(); }
+    }
+    if root.page == "login": LoginAccountView {
+        account-number <=> root.login-account-number;
+        account-number-valid: root.login-account-number-valid;
+        state: root.login-state;
+        method: root.login-method;
+        error-message: root.login-error-message;
+        has-account-history: root.has-account-history;
+        saved-account-number: root.saved-account-number;
+        create-confirm-open <=> root.create-confirm-open;
+        clear-history-confirm-open <=> root.clear-history-confirm-open;
+        account-number-edited(value) => { root.login-account-number-edited(value); }
+        login(value) => { root.login(value); }
+        create-account => { root.create-account(); }
+        select-saved-account(value) => { root.select-saved-account(value); }
+        clear-account-history => { root.clear-account-history(); }
+        settings => { root.settings(); }
+    }
+}
+
+export component ExpiredAccountSurface inherits Rectangle {
+    in property <string> account-number;
+    in property <string> device-name;
+    in property <bool> connected;
+    in property <bool> is-new-account;
+    in property <string> recovery-action: "open-browser";
+    in property <bool> lockdown-mode;
+    in-out property <bool> lockdown-alert-open: false;
+    callback disconnect;
+    callback buy-credit;
+    callback redeem-voucher;
+    callback copy-account-number(string);
+    callback set-lockdown-mode(bool);
+    background: AccountPalette.dark-blue;
+
+    if !root.is-new-account: Image {
+        x: (parent.width - 48px) / 2;
+        y: 24px;
+        width: 48px;
+        height: 48px;
+        source: @image-url("../assets/images/negative.svg");
+        image-fit: contain;
+    }
+    Text {
+        x: 24px;
+        y: root.is-new-account ? 24px : 88px;
+        width: parent.width - 48px;
+        height: 38px;
+        text: root.is-new-account ? "Congrats!" : "Out of time";
+        color: AccountPalette.white;
+        font-family: "Source Sans Pro";
+        font-size: 32px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    if root.is-new-account: Text {
+        x: 24px;
+        y: 70px;
+        width: parent.width - 48px;
+        height: 18px;
+        text: "Here’s your account number. Save it!";
+        color: AccountPalette.white;
+        font-family: "Open Sans";
+        font-size: 12px;
+        font-weight: 600;
+    }
+    if root.is-new-account: Rectangle {
+        x: 24px;
+        y: 88px;
+        width: parent.width - 48px;
+        height: 50px;
+        background: transparent;
+        Text {
+            width: parent.width - 32px;
+            height: parent.height;
+            text: root.account-number;
+            color: AccountPalette.white;
+            font-family: "Open Sans";
+            font-size: 20px;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        AccountIconButton {
+            x: parent.width - 24px;
+            y: 13px;
+            icon: @image-url("../assets/icons/icon-copy.svg");
+            clicked => { root.copy-account-number(root.account-number); }
+        }
+    }
+    if root.is-new-account: Text {
+        x: 24px;
+        y: 138px;
+        width: parent.width - 48px;
+        height: 20px;
+        text: "Device name: " + root.device-name;
+        color: AccountPalette.white;
+        font-family: "Open Sans";
+        font-size: 12px;
+        font-weight: 600;
+    }
+    Text {
+        x: 24px;
+        y: root.is-new-account ? 174px : 134px;
+        width: parent.width - 48px;
+        height: root.is-new-account ? 72px : 64px;
+        text: (root.is-new-account ? "To start using the app, you first need to add time to your account. " : "You have no more VPN time left on this account. ")
+            + (root.recovery-action == "disconnect"
+            ? "To add more, you will need to disconnect and access the Internet with an unsecure connection."
+            : "Either buy credit on our website or redeem a voucher.");
+        color: AccountPalette.white;
+        font-family: "Open Sans";
+        font-size: 12px;
+        font-weight: 600;
+        wrap: word-wrap;
+    }
+
+    AccountButton {
+        visible: root.recovery-action == "disconnect";
+        x: 24px;
+        y: parent.height - 152px;
+        width: parent.width - 48px;
+        text: "Disconnect";
+        variant: "destructive";
+        clicked => { root.disconnect(); }
+    }
+
+    AccountButton {
+        x: 24px;
+        y: parent.height - 104px;
+        width: parent.width - 48px;
+        text: root.is-new-account ? "Buy credit" : "Buy more credit";
+        variant: "success";
+        trailing-icon: @image-url("../assets/icons/icon-external.svg");
+        enabled: root.recovery-action != "disconnect";
+        clicked => {
+            if (root.recovery-action == "disable-lockdown") { root.lockdown-alert-open = true; }
+            else { root.buy-credit(); }
+        }
+    }
+
+    AccountButton {
+        x: 24px;
+        y: parent.height - 56px;
+        width: parent.width - 48px;
+        text: "Redeem voucher";
+        variant: "success";
+        clicked => { root.redeem-voucher(); }
+    }
+
+    lockdown-alert-overlay := Rectangle {
+        visible: root.lockdown-alert-open;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea { }
+
+        Rectangle {
+            x: 16px;
+            y: 64px;
+            width: parent.width - 32px;
+            height: 360px;
+            background: AccountPalette.dark-blue;
+            border-radius: 12px;
+            Image {
+                x: (parent.width - 24px) / 2;
+                y: 16px;
+                width: 24px;
+                height: 24px;
+                source: @image-url("../assets/icons/icon-alert-circle.svg");
+                image-fit: contain;
+            }
+
+            Text {
+                x: 16px;
+                y: 56px;
+                width: parent.width - 32px;
+                height: 54px;
+                text: "You need to disable \"Lockdown mode\" in order to access the Internet to add time.";
+                color: AccountPalette.white-60;
+                font-family: "Open Sans";
+                font-size: 12px;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+
+            Text {
+                x: 16px;
+                y: 122px;
+                width: parent.width - 32px;
+                height: 72px;
+                text: "Remember, turning it off will allow network traffic while the VPN is disconnected until you turn it back on under Advanced settings.";
+                color: AccountPalette.white-60;
+                font-family: "Open Sans";
+                font-size: 12px;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+
+            Rectangle {
+                x: 16px;
+                y: 210px;
+                width: parent.width - 32px;
+                height: 48px;
+                background: AccountPalette.blue;
+                border-radius: 16px;
+                Text {
+                    x: 16px;
+                    width: parent.width - 80px;
+                    height: parent.height;
+                    text: "Lockdown mode";
+                    color: AccountPalette.white;
+                    font-family: "Source Sans Pro";
+                    font-size: 18px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+
+                Rectangle {
+                    x: parent.width - 52px;
+                    y: 12px;
+                    width: 40px;
+                    height: 24px;
+                    border-radius: 12px;
+                    background: root.lockdown-mode ? AccountPalette.green : AccountPalette.blue-pressed;
+                    Rectangle {
+                        x: root.lockdown-mode ? 18px : 2px;
+                        y: 2px;
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 10px;
+                        background: AccountPalette.white;
+                        animate x { duration: 150ms; }
+                    }
+
+                    TouchArea {
+                        clicked => { root.set-lockdown-mode(!root.lockdown-mode); }
+                    }
+                }
+            }
+
+            AccountButton {
+                x: 16px;
+                y: parent.height - 48px;
+                width: parent.width - 32px;
+                text: "Close";
+                clicked => { root.lockdown-alert-open = false; }
+            }
+        }
+    }
+}
+
+export component DeviceRevokedSurface inherits Rectangle {
+    in property <bool> connected;
+    callback go-to-login;
+    background: AccountPalette.dark-blue;
+    Image {
+        x: (parent.width - 48px) / 2;
+        y: 24px;
+        width: 48px;
+        height: 48px;
+        source: @image-url("../assets/images/negative.svg");
+        image-fit: contain;
+    }
+
+    Text {
+        x: 24px;
+        y: 88px;
+        width: parent.width - 48px;
+        height: 38px;
+        text: "Device is inactive";
+        color: AccountPalette.white;
+        font-family: "Source Sans Pro";
+        font-size: 24px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    Text {
+        x: 24px;
+        y: 134px;
+        width: parent.width - 48px;
+        height: 60px;
+        text: "You have removed this device. To connect again, you will need to log back in.";
+        color: AccountPalette.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        wrap: word-wrap;
+    }
+
+    Text {
+        visible: root.connected;
+        x: 24px;
+        y: 218px;
+        width: parent.width - 48px;
+        height: 54px;
+        text: "Going to login will unblock the Internet on this device.";
+        color: AccountPalette.white;
+        font-family: "Open Sans";
+        font-size: 14px;
+        font-weight: 600;
+        wrap: word-wrap;
+    }
+
+    AccountButton {
+        x: 24px;
+        y: parent.height - 56px;
+        width: parent.width - 48px;
+        text: "Go to login";
+        variant: root.connected ? "destructive" : "primary";
+        clicked => { root.go-to-login(); }
+    }
+}
+
+export component TooManyDevicesSurface inherits Rectangle {
+    in property <[AccountDevice]> devices;
+    in property <bool> loading;
+    in property <bool> login-pending;
+    in property <string> remove-error;
+    callback remove-device(string);
+    callback continue-login;
+    callback cancel-login;
+    callback dismiss-remove-error;
+    callback settings;
+    private property <string> pending-remove-id: "";
+    private property <string> pending-remove-name: "";
+    background: AccountPalette.dark-blue;
+
+    Rectangle {
+        width: parent.width;
+        height: 68px;
+        background: AccountPalette.blue;
+        Image {
+            x: 16px;
+            y: 15px;
+            width: 38px;
+            height: 38px;
+            source: @image-url("../assets/images/logo-icon.svg");
+            image-fit: contain;
+        }
+
+        Image {
+            x: 62px;
+            y: 26px;
+            width: 142px;
+            height: 16px;
+            source: @image-url("../assets/images/logo-text.svg");
+            image-fit: contain;
+        }
+
+        AccountIconButton {
+            x: parent.width - 40px;
+            y: 22px;
+            icon: @image-url("../assets/icons/icon-settings-filled.svg");
+            clicked => { root.settings(); }
+        }
+    }
+
+    Image {
+        x: (parent.width - 48px) / 2;
+        y: 92px;
+        width: 48px;
+        height: 48px;
+        source: root.devices.length < 5 ? @image-url("../assets/images/positive.svg") : @image-url("../assets/images/negative.svg");
+        image-fit: contain;
+    }
+
+    Text {
+        x: 16px;
+        y: 164px;
+        width: parent.width - 32px;
+        height: 28px;
+        text: root.devices.length < 5 ? "Super!" : "Too many devices";
+        color: AccountPalette.white;
+        font-family: "Source Sans Pro";
+        font-size: 24px;
+        font-weight: 700;
+    }
+
+    Text {
+        x: 16px;
+        y: 200px;
+        width: parent.width - 32px;
+        height: root.devices.length < 5 ? 36px : 54px;
+        text: root.devices.length < 5 ? "You can now continue logging in on this device."
+            : "Please log out of at least one by removing it from the list below. You can find the corresponding device name under the device's Account settings.";
+        color: AccountPalette.white;
+        font-family: "Open Sans";
+        font-size: 12px;
+        font-weight: 400;
+        wrap: word-wrap;
+    }
+
+    Text {
+        visible: root.loading;
+        x: 16px;
+        y: 270px;
+        width: parent.width - 32px;
+        height: 48px;
+        text: "Loading devices...";
+        color: AccountPalette.white-60;
+        font-family: "Open Sans";
+        font-size: 14px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    login-devices-list := ListView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        visible: !root.loading;
+        x: 16px;
+        y: 270px;
+        width: parent.width - 32px;
+        height: parent.height - 390px;
+        for device in root.devices: Rectangle {
+            height: 51px;
+            background: AccountPalette.blue;
+            border-radius: 16px;
+            opacity: device.deleting ? 0.4 : 1;
+            Text {
+                x: 16px;
+                y: 8px;
+                width: parent.width - 64px;
+                height: 20px;
+                text: device.name;
+                color: AccountPalette.white;
+                font-family: "Open Sans";
+                font-size: 14px;
+                font-weight: 600;
+                overflow: elide;
+            }
+
+            Text {
+                x: 16px;
+                y: 28px;
+                width: parent.width - 64px;
+                height: 15px;
+                text: "Created: " + device.created;
+                color: AccountPalette.white-60;
+                font-family: "Open Sans";
+                font-size: 10px;
+                font-weight: 600;
+                overflow: elide;
+            }
+
+            AccountIconButton {
+                x: parent.width - 40px;
+                y: 13px;
+                icon: @image-url("../assets/icons/icon-cross-circle.svg");
+                enabled: !device.deleting;
+                clicked => { root.pending-remove-id = device.id; root.pending-remove-name = device.name; }
+            }
+        }
+    }
+
+    ThinScrollbar {
+        x: login-devices-list.x + login-devices-list.width - 12px;
+        y: login-devices-list.y;
+        width: 12px;
+        height: login-devices-list.height;
+        content-height: login-devices-list.viewport-height;
+        visible-height: login-devices-list.visible-height;
+        scroll-y <=> login-devices-list.viewport-y;
+    }
+
+    AccountButton {
+        x: 16px;
+        y: parent.height - 104px;
+        width: parent.width - 32px;
+        text: root.login-pending ? "Logging in..." : "Continue with login";
+        variant: "success";
+        enabled: root.devices.length < 5 && !root.login-pending;
+        clicked => { root.continue-login(); }
+    }
+
+    AccountButton {
+        x: 16px;
+        y: parent.height - 56px;
+        width: parent.width - 32px;
+        text: "Back";
+        enabled: !root.login-pending;
+        clicked => { root.cancel-login(); }
+    }
+
+    remove-device-overlay := Rectangle {
+        visible: root.pending-remove-id != "";
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea { }
+
+        ModalPanel {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            title: "Remove " + root.pending-remove-name + "?";
+            body: "The device will be removed from the list and logged out.";
+            primary-text: "Remove";
+            primary-variant: "destructive";
+            secondary-text: "Back";
+            primary => { root.remove-device(root.pending-remove-id); }
+            secondary => { root.pending-remove-id = ""; root.pending-remove-name = ""; }
+        }
+    }
+
+    remove-error-overlay := Rectangle {
+        visible: root.remove-error != "";
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: #00000080;
+        TouchArea { }
+
+        ModalPanel {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            title: "Failed to remove device";
+            body: root.remove-error;
+            primary-text: "Close";
+            secondary-text: "";
+            primary => { root.dismiss-remove-error(); }
+        }
+    }
+}

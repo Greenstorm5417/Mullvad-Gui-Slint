@@ -1,0 +1,50 @@
+// Upstream's scrollbar (CustomScrollbars.tsx) is a bare, near-invisible thumb:
+// no track background, an 8px 40%-opaque white bar that only widens/brightens
+// while hovered or dragged. Slint's built-in ListView/ScrollView scrollbar
+// can't be recolored to match, so callers disable it
+// (vertical/horizontal-scrollbar-policy: always-off) and place one of these
+// alongside the scrollable view instead.
+export component ThinScrollbar inherits Rectangle {
+    in property <length> content-height;
+    in property <length> visible-height;
+    in-out property <length> scroll-y;
+    background: transparent;
+    // Hidden when content actually fits (nothing to scroll); shown whenever
+    // it doesn't. Make sure each page's `viewport-height` estimate is
+    // accurate, since an over- or under-estimate shows up directly here.
+    visible: root.content-height > root.visible-height;
+
+    private property <length> thumb-height: max(24px, root.height * root.height / max(root.content-height, 1px));
+    private property <length> scroll-range: root.content-height - root.visible-height;
+    private property <length> track-range: root.height - root.thumb-height;
+
+    thumb := Rectangle {
+        x: (root.width - self.width) / 2;
+        y: root.scroll-range <= 0px ? 0px : (-root.scroll-y / root.scroll-range) * root.track-range;
+        width: thumb-touch.pressed || thumb-touch.has-hover ? 12px : 8px;
+        height: root.thumb-height;
+        border-radius: self.width / 2;
+        background: thumb-touch.pressed || thumb-touch.has-hover ? #ffffffa6 : #ffffff66;
+        animate width, border-radius {
+            duration: 250ms;
+            easing: ease-in-out;
+        }
+
+        thumb-touch := TouchArea {
+            private property <length> drag-start-y;
+            private property <length> drag-start-scroll-y;
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.down) {
+                    self.drag-start-y = self.mouse-y;
+                    self.drag-start-scroll-y = root.scroll-y;
+                }
+            }
+            moved => {
+                if (self.pressed && root.track-range > 0px) {
+                    root.scroll-y = max(-root.scroll-range, min(0px,
+                        self.drag-start-scroll-y - (self.mouse-y - self.drag-start-y) * root.scroll-range / root.track-range));
+                }
+            }
+        }
+    }
+}

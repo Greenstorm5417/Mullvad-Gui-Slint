@@ -1,6 +1,6 @@
 # Upstream attribution
 
-This project is an independent GTK4 frontend based on the GPL-3.0-or-later
+This project is an independent Slint frontend based on the GPL-3.0-or-later
 Mullvad VPN application.
 
 - Upstream: <https://github.com/mullvad/mullvadvpn-app>

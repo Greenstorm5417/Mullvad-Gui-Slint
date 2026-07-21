@@ -1,6 +1,7 @@
 # Contributing
 
-Use Rust 1.96.1 and install the GTK4 development package for your distribution.
+Use Rust 1.96.1 and install the native Fontconfig and XKB development packages
+for your distribution.
 Before opening a pull request, run:
 
 ```sh

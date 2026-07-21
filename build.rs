@@ -1,4 +1,8 @@
 fn main() {
+    if std::env::var_os("CARGO_FEATURE_UI").is_some() {
+        slint_build::compile("ui/mullvad.slint").expect("Slint UI should compile");
+    }
+
     let mut prost = prost_build::Config::new();
     prost.protoc_executable(
         protoc_bin_vendored::protoc_bin_path().expect("vendored protoc should be available"),
@@ -18,4 +22,5 @@ fn main() {
 
     println!("cargo:rerun-if-changed=proto/management_interface.proto");
     println!("cargo:rerun-if-changed=proto/relay_selector.proto");
+    println!("cargo:rerun-if-changed=ui/mullvad.slint");
 }
