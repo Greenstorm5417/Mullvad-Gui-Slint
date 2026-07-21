@@ -22,7 +22,7 @@ jobs:
       matrix:
         channel: [stable, beta]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build isolated daemon-test image
         run: docker build --file docker/daemon-test.Dockerfile --tag mullvad-gui-slint-daemon-test .
       - name: Install and test the latest official daemon
