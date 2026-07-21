@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Mullvad-GTK
+GenericName=VPN client
+Comment=Secure your connection with Mullvad VPN
+Exec=mullvad-gtk
+Icon=mullvad-gtk
+Terminal=false
+Categories=Network;Security;
+StartupNotify=true
+StartupWMClass=io.github.Greenstorm5417.MullvadGTK
+Keywords=VPN;privacy;security;Mullvad;

@@ -1,0 +1,65 @@
+* {
+  box-sizing: border-box;
+}
+
+:focus {
+  outline: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+  height: 100%;
+  width: 100%;
+}
+
+img {
+  -webkit-user-drag: none;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  height: 100%;
+  width: 100%;
+  display: flex;
+}
+
+button {
+  border-radius: 0;
+  text-align: inherit;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  cursor: default;
+  border: none;
+  color: inherit;
+  font: inherit;
+}
+
+#app {
+  height: 100%;
+  width: 100%;
+  display: flex;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 1ms !important;
+  }
+
+  .map-zoomable-group {
+    transition-duration: 0ms !important;
+  }
+}
+
+::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+  display: block;
+}

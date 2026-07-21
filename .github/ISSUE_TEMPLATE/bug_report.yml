@@ -1,0 +1,40 @@
+name: Mullvad-GTK bug
+description: Report a problem with this GTK application or its packages
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include your Mullvad account number, voucher codes, or other secrets.
+  - type: input
+    id: version
+    attributes:
+      label: Mullvad-GTK version
+      placeholder: 0.1.0-alpha.1
+    validations:
+      required: true
+  - type: input
+    id: daemon-version
+    attributes:
+      label: Mullvad VPN app or daemon version
+    validations:
+      required: true
+  - type: input
+    id: desktop
+    attributes:
+      label: Distribution, desktop, and display protocol
+      placeholder: Fedora 42, GNOME 48, Wayland
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include exact steps and the expected result.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: shell

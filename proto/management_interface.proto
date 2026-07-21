@@ -1,0 +1,1013 @@
+syntax = "proto3";
+
+package mullvad_daemon.management_interface;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/duration.proto";
+
+service ManagementService {
+  // Control and get tunnel state
+  rpc ConnectTunnel(google.protobuf.Empty) returns (google.protobuf.BoolValue) {}
+  rpc DisconnectTunnel(google.protobuf.StringValue) returns (google.protobuf.BoolValue) {}
+  rpc ReconnectTunnel(google.protobuf.Empty) returns (google.protobuf.BoolValue) {}
+  rpc GetTunnelState(google.protobuf.Empty) returns (TunnelState) {}
+
+  // Control the daemon and receive events
+  rpc EventsListen(google.protobuf.Empty) returns (stream DaemonEvent) {}
+  // DEPRECATED: Prefer PrepareRestartV2.
+  rpc PrepareRestart(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  // Takes a a boolean argument which says whether the daemon should stop after
+  // it is done preparing for a restart.
+  rpc PrepareRestartV2(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+  rpc FactoryReset(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+  rpc GetCurrentVersion(google.protobuf.Empty) returns (google.protobuf.StringValue) {}
+  // Get information about the latest available version of the app.
+  // Note that calling this during an in-app upgrade will cancel the upgrade.
+  rpc GetVersionInfo(google.protobuf.Empty) returns (AppVersionInfo) {}
+
+  rpc IsPerformingPostUpgrade(google.protobuf.Empty) returns (google.protobuf.BoolValue) {}
+
+  // Relays and tunnel constraints
+  rpc UpdateRelayLocations(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc GetRelayLocations(google.protobuf.Empty) returns (RelayList) {}
+  rpc SetRelaySettings(RelaySettings) returns (google.protobuf.Empty) {}
+  rpc SetObfuscationSettings(ObfuscationSettings) returns (google.protobuf.Empty) {}
+
+  // Settings
+  rpc GetSettings(google.protobuf.Empty) returns (Settings) {}
+  // SettingsKeyList contains a list of settings to preserve during reset.
+  rpc ResetSettings(SettingsKeyList) returns (google.protobuf.Empty) {}
+  rpc SetAllowLan(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+  rpc SetShowBetaReleases(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+  rpc SetLockdownMode(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+  rpc SetAutoConnect(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+  rpc SetWireguardMtu(google.protobuf.UInt32Value) returns (google.protobuf.Empty) {}
+  rpc SetWireguardAllowedIps(AllowedIpsList) returns (google.protobuf.Empty) {}
+  rpc SetEnableIpv6(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+  rpc SetQuantumResistantTunnel(QuantumResistantState) returns (google.protobuf.Empty) {}
+  rpc SetEnableDaita(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+  // This is exactly the same as SetEnableDaita.
+  rpc SetDaitaSettings(DaitaSettings) returns (google.protobuf.Empty) {}
+  rpc SetDnsOptions(DnsOptions) returns (google.protobuf.Empty) {}
+  rpc SetRelayOverride(RelayOverride) returns (google.protobuf.Empty) {}
+  rpc ClearAllRelayOverrides(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc SetEnableRecents(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+  rpc SetUserspaceWireguard(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+
+  // Account management
+  rpc CreateNewAccount(google.protobuf.Empty) returns (google.protobuf.StringValue) {}
+  rpc LoginAccount(google.protobuf.StringValue) returns (google.protobuf.Empty) {}
+  rpc LogoutAccount(google.protobuf.StringValue) returns (google.protobuf.Empty) {}
+  rpc GetAccountData(google.protobuf.StringValue) returns (AccountData) {}
+  rpc GetAccountHistory(google.protobuf.Empty) returns (AccountHistory) {}
+  rpc ClearAccountHistory(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc GetWwwAuthToken(google.protobuf.Empty) returns (google.protobuf.StringValue) {}
+  rpc SubmitVoucher(google.protobuf.StringValue) returns (VoucherSubmission) {}
+  // Android only
+  rpc DeleteAccount(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+  // Device management
+  rpc GetDevice(google.protobuf.Empty) returns (DeviceState) {}
+  rpc UpdateDevice(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc ListDevices(google.protobuf.StringValue) returns (DeviceList) {}
+  rpc RemoveDevice(DeviceRemoval) returns (google.protobuf.Empty) {}
+
+  // WireGuard key management
+  rpc SetWireguardRotationInterval(google.protobuf.Duration) returns (google.protobuf.Empty) {}
+  rpc ResetWireguardRotationInterval(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc RotateWireguardKey(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc GetWireguardKey(google.protobuf.Empty) returns (PublicKey) {}
+
+  // Custom lists
+  rpc CreateCustomList(NewCustomList) returns (google.protobuf.StringValue) {}
+  rpc DeleteCustomList(google.protobuf.StringValue) returns (google.protobuf.Empty) {}
+  rpc UpdateCustomList(CustomList) returns (google.protobuf.Empty) {}
+  rpc ClearCustomLists(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+  // Access methods
+  rpc AddApiAccessMethod(NewAccessMethodSetting) returns (UUID) {}
+  rpc RemoveApiAccessMethod(UUID) returns (google.protobuf.Empty) {}
+  rpc SetApiAccessMethod(UUID) returns (google.protobuf.Empty) {}
+  rpc UpdateApiAccessMethod(AccessMethodSetting) returns (google.protobuf.Empty) {}
+  rpc ClearCustomApiAccessMethods(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc GetCurrentApiAccessMethod(google.protobuf.Empty) returns (AccessMethodSetting) {}
+  rpc TestCustomApiAccessMethod(CustomProxy) returns (google.protobuf.BoolValue) {}
+  rpc TestApiAccessMethodById(UUID) returns (google.protobuf.BoolValue) {}
+  // Shadowsocks
+
+  // Enumerate all supported Shadowsocks ciphers.
+  rpc ShadowsocksCiphers(google.protobuf.Empty) returns (Shadowsocks.Ciphers);
+
+  // Bridges (Used for reaching the API)
+  rpc GetBridges(google.protobuf.Empty) returns (BridgeList) {}
+
+  // Split tunneling (Linux)
+  rpc GetSplitTunnelProcesses(google.protobuf.Empty) returns (stream google.protobuf.Int32Value) {}
+  rpc AddSplitTunnelProcess(google.protobuf.Int32Value) returns (google.protobuf.Empty) {}
+  rpc RemoveSplitTunnelProcess(google.protobuf.Int32Value) returns (google.protobuf.Empty) {}
+  rpc ClearSplitTunnelProcesses(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+  // Split tunneling (Linux, Windows)
+  rpc SplitTunnelIsSupported(google.protobuf.Empty) returns (google.protobuf.BoolValue) {}
+
+  // Split tunneling (Windows, macOS, Android)
+  rpc AddSplitTunnelApp(google.protobuf.StringValue) returns (google.protobuf.Empty) {}
+  rpc RemoveSplitTunnelApp(google.protobuf.StringValue) returns (google.protobuf.Empty) {}
+  rpc SetSplitTunnelState(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+
+  // Split tunneling (Windows, macOS)
+  rpc ClearSplitTunnelApps(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc GetExcludedProcesses(google.protobuf.Empty) returns (ExcludedProcessList) {}
+
+  // Play payment (Android)
+  rpc InitPlayPurchase(google.protobuf.Empty) returns (PlayExternalObfuscatedAccountId) {}
+  rpc VerifyPlayPurchase(PlayPurchase) returns (google.protobuf.Empty) {}
+
+  // Check whether the app needs TCC approval for split tunneling (macOS)
+  rpc NeedFullDiskPermissions(google.protobuf.Empty) returns (google.protobuf.BoolValue) {}
+
+  // Notify the split tunnel monitor that a volume was mounted or dismounted
+  // (Windows).
+  rpc CheckVolumes(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+  // Apply a JSON blob to the settings
+  // See ../../docs/settings-patch-format.md for a description of the format
+  rpc ApplyJsonSettings(google.protobuf.StringValue) returns (google.protobuf.Empty) {}
+  // Return a JSON blob containing all overridable settings, if there are any
+  rpc ExportJsonSettings(google.protobuf.Empty) returns (google.protobuf.StringValue) {}
+
+  // Get current feature indicators
+  rpc GetFeatureIndicators(google.protobuf.Empty) returns (FeatureIndicators) {}
+
+  // Debug features
+  rpc DisableRelay(google.protobuf.StringValue) returns (google.protobuf.Empty) {}
+  rpc EnableRelay(google.protobuf.StringValue) returns (google.protobuf.Empty) {}
+
+  rpc GetRolloutThreshold(google.protobuf.Empty) returns (Rollout) {}
+  rpc RegenerateRolloutThreshold(google.protobuf.Empty) returns (Rollout) {}
+  rpc SetRolloutThresholdSeed(Seed) returns (google.protobuf.Empty) {}
+
+  // App upgrade
+  rpc AppUpgrade(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc AppUpgradeAbort(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc AppUpgradeEventsListen(google.protobuf.Empty) returns (stream AppUpgradeEvent) {}
+  rpc GetAppUpgradeCacheDir(google.protobuf.Empty) returns (google.protobuf.StringValue) {}
+
+  rpc SetLogLevel(LogLevel) returns (google.protobuf.Empty) {}
+  rpc SetRustLogEnvFilter(LogFilter) returns (google.protobuf.Empty) {}
+  rpc LogListen(google.protobuf.Empty) returns (stream LogMessage) {}
+
+  // The great multihop migration of 2026
+
+  // If the return value is SplitFilterMigration, a migration took place recently. After
+  // ClearMigrationMessage has been called, GetMigrationEvent will indefintely return null.
+  // If the return value is null, there is nothing for the clients to do. The migration has either
+  // not been run or was already completed.
+  rpc GetMigrationEvent(google.protobuf.Empty) returns (SplitFilterMigration);
+  // Call this function after *handling* a SplitFilterMigration as returned by GetMigrationEvent to
+  // mark the migration as completed. This will cause GetMigrationEvent to return a null-value
+  // indefintely.
+  rpc ClearMigrationMessage(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
+message LogLevel { LogLevelValue level = 1; }
+
+enum LogLevelValue {
+  OFF = 0;
+  ERROR = 1;
+  WARN = 2;
+  INFO = 3;
+  DEBUG = 4;
+  TRACE = 5;
+}
+
+message AppUpgradeEvent {
+  oneof event {
+    AppUpgradeDownloadStarting download_starting = 1;
+    AppUpgradeDownloadProgress download_progress = 2;
+    AppUpgradeAborted upgrade_aborted = 3;
+    AppUpgradeVerifyingInstaller verifying_installer = 4;
+    AppUpgradeVerifiedInstaller verified_installer = 5;
+    AppUpgradeError error = 6;
+  }
+}
+
+message AppUpgradeDownloadStarting {}
+message AppUpgradeDownloadProgress {
+  string server = 1;
+  uint32 progress = 2;
+  optional google.protobuf.Duration time_left = 3;
+}
+message AppUpgradeAborted {}
+message AppUpgradeVerifyingInstaller {}
+message AppUpgradeVerifiedInstaller {}
+message AppUpgradeError {
+  enum Error {
+    GENERAL_ERROR = 0;
+    DOWNLOAD_FAILED = 1;
+    VERIFICATION_FAILED = 2;
+  }
+  Error error = 1;
+}
+
+message Seed { uint32 seed = 1; }
+message Rollout { float threshold = 1; }
+
+message UUID { string value = 1; }
+
+message AccountData {
+  string id = 1;
+  google.protobuf.Timestamp expiry = 2;
+}
+
+message AccountHistory { google.protobuf.StringValue number = 1; }
+
+message VoucherSubmission {
+  uint64 seconds_added = 1;
+  google.protobuf.Timestamp new_expiry = 2;
+}
+
+enum AfterDisconnect {
+  NOTHING = 0;
+  BLOCK = 1;
+  RECONNECT = 2;
+}
+
+message ErrorState {
+  enum Cause {
+    AUTH_FAILED = 0;
+    IPV6_UNAVAILABLE = 1;
+    SET_FIREWALL_POLICY_ERROR = 2;
+    SET_DNS_ERROR = 3;
+    START_TUNNEL_ERROR = 4;
+    CREATE_TUNNEL_DEVICE = 5;
+    TUNNEL_PARAMETER_ERROR = 6;
+    IS_OFFLINE = 7;
+    // Android only
+    NOT_PREPARED = 8;
+    // Android only
+    OTHER_ALWAYS_ON_APP = 9;
+    // Android only
+    OTHER_LEGACY_ALWAYS_ON_VPN = 10;
+    // Android only
+    INVALID_DNS_SERVERS = 11;
+    // Android only
+    INVALID_IPV6_CONFIG = 14;
+    SPLIT_TUNNEL_ERROR = 12;
+    NEED_FULL_DISK_PERMISSIONS = 13;
+  }
+
+  enum AuthFailedError {
+    UNKNOWN = 0;
+    INVALID_ACCOUNT = 1;
+    EXPIRED_ACCOUNT = 2;
+    TOO_MANY_CONNECTIONS = 3;
+  }
+
+  enum GenerationError {
+    NO_MATCHING_RELAY_ENTRY = 0;
+    NO_MATCHING_RELAY_EXIT = 1;
+    NO_MATCHING_RELAY = 2;
+    NO_MATCHING_BRIDGE_RELAY = 3;
+    CUSTOM_TUNNEL_HOST_RESOLUTION_ERROR = 4;
+    NETWORK_IPV4_UNAVAILABLE = 5;
+    NETWORK_IPV6_UNAVAILABLE = 6;
+  }
+
+  message FirewallPolicyError {
+    enum ErrorType {
+      GENERIC = 0;
+      LOCKED = 1;
+    }
+    ErrorType type = 1;
+
+    // LOCKED
+    uint32 lock_pid = 2;
+    optional string lock_name = 3;
+  }
+
+  message OtherAlwaysOnAppError { string app_name = 1; }
+
+  message InvalidDnsServersError { repeated string ip_addrs = 1; }
+
+  message InvalidIpv6Config {
+    repeated string addrs = 1;
+    repeated string routes = 2;
+    repeated string dns = 3;
+  }
+
+  Cause cause = 1;
+  FirewallPolicyError blocking_error = 2;
+
+  // AUTH_FAILED
+  AuthFailedError auth_failed_error = 3;
+  // TUNNEL_PARAMETER_ERROR
+  GenerationError parameter_error = 4;
+  // SET_FIREWALL_POLICY_ERROR
+  FirewallPolicyError policy_error = 5;
+  // CREATE_TUNNEL_DEVICE
+  optional int32 create_tunnel_error = 6;
+
+  // Android only
+  OtherAlwaysOnAppError other_always_on_app_error = 8;
+  // Android only
+  InvalidDnsServersError invalid_dns_servers_error = 9;
+  // Android only
+  InvalidIpv6Config invalid_ipv6_config_error = 10;
+}
+
+message TunnelState {
+  message Disconnected {
+    GeoIpLocation disconnected_location = 1;
+    bool locked_down = 2;
+  }
+  message Connecting {
+    TunnelStateRelayInfo relay_info = 1;
+    FeatureIndicators feature_indicators = 2;
+  }
+  message Connected {
+    TunnelStateRelayInfo relay_info = 1;
+    FeatureIndicators feature_indicators = 2;
+  }
+  message Disconnecting { AfterDisconnect after_disconnect = 1; }
+  message Error { ErrorState error_state = 1; }
+
+  oneof state {
+    Disconnected disconnected = 1;
+    Connecting connecting = 2;
+    Connected connected = 3;
+    Disconnecting disconnecting = 4;
+    Error error = 5;
+  }
+}
+
+message TunnelStateRelayInfo {
+  TunnelEndpoint tunnel_endpoint = 1;
+  GeoIpLocation location = 2;
+}
+
+message TunnelEndpoint {
+  string address = 1;
+  TransportProtocol protocol = 2;
+  bool quantum_resistant = 3;
+  ObfuscationInfo obfuscation = 4;
+  Endpoint entry_endpoint = 5;
+  TunnelMetadata tunnel_metadata = 6;
+  bool daita = 7;
+}
+
+message FeatureIndicators { repeated FeatureIndicator active_features = 1; }
+
+enum FeatureIndicator {
+  QUANTUM_RESISTANCE = 0;
+  MULTIHOP = 1;
+  SPLIT_TUNNELING = 2;
+  LOCKDOWN_MODE = 3;
+  WIREGUARD_PORT = 4;
+  UDP_2_TCP = 5;
+  SHADOWSOCKS = 6;
+  QUIC = 7;
+  LWO = 8;
+  LAN_SHARING = 9;
+  DNS_CONTENT_BLOCKERS = 10;
+  CUSTOM_DNS = 11;
+  SERVER_IP_OVERRIDE = 12;
+  CUSTOM_MTU = 13;
+  DAITA = 14;
+  MULTIHOP_AUTO = 15;
+}
+
+message ObfuscationInfo {
+  oneof type {
+    ObfuscationEndpoint single = 1;
+    MultiplexObfuscation multiple = 2;
+  }
+}
+
+message MultiplexObfuscation {
+  // optional direct endpoint
+  Endpoint direct = 1;
+  repeated ObfuscationEndpoint obfuscators = 2;
+}
+
+message ObfuscationEndpoint {
+  enum ObfuscationType {
+    UDP2TCP = 0;
+    SHADOWSOCKS = 1;
+    QUIC = 2;
+    LWO = 3;
+  }
+
+  Endpoint endpoint = 1;
+  ObfuscationType obfuscation_type = 2;
+}
+
+message Endpoint {
+  string address = 1;
+  TransportProtocol protocol = 2;
+}
+
+message GeoIpLocation {
+  optional string ipv4 = 1;
+  optional string ipv6 = 2;
+  string country = 3;
+  optional string city = 4;
+  double latitude = 5;
+  double longitude = 6;
+  bool mullvad_exit_ip = 7;
+  optional string hostname = 8;
+  // Hostname of the entry relay. e.g. `se-got-wg-101`.
+  //
+  // This field is non-null when traffic is routed through an entry relay.
+  optional string entry_hostname = 10;
+  // City code of the entry relay. e.g. `got` for "Gothenburg".
+  //
+  // This field is non-null when traffic is routed through an entry relay.
+  optional string entry_city = 11;
+  // Country code of the entry relay. e.g. `se` for "Sweden".
+  //
+  // This field is non-null when traffic is routed through an entry relay.
+  optional string entry_country = 12;
+}
+
+message TunnelMetadata { string tunnel_interface = 1; }
+
+enum Ownership {
+  ANY = 0;
+  MULLVAD_OWNED = 1;
+  RENTED = 2;
+}
+
+message LocationConstraint {
+  // When a LocationConstraint is constructed, the inner `type` value MUST NOT be null.
+  oneof type {
+    string custom_list = 1;
+    GeographicLocationConstraint location = 2;
+  }
+}
+
+message GeographicLocationConstraint {
+  string country = 1;
+  optional string city = 2;
+  optional string hostname = 3;
+}
+
+// TODO: Rename to "CensorshipCircumventionSettings"?
+message ObfuscationSettings {
+  enum SelectedObfuscation {
+    AUTO = 0;
+    OFF = 1;
+    WIREGUARD_PORT = 2;
+    UDP2TCP = 3;
+    SHADOWSOCKS = 4;
+    QUIC = 5;
+    LWO = 6;
+  }
+  message Udp2TcpObfuscation { optional uint32 port = 1; }
+  message Shadowsocks { optional uint32 port = 1; }
+  message WireguardPort { optional uint32 port = 1; }
+  message Lwo { optional uint32 port = 1; }
+  SelectedObfuscation selected_obfuscation = 1;
+  Udp2TcpObfuscation udp2tcp = 2;
+  Shadowsocks shadowsocks = 3;
+  WireguardPort wireguard_port = 4;
+  Lwo lwo = 5;
+}
+
+message CustomList {
+  string id = 1;
+  string name = 2;
+  repeated GeographicLocationConstraint locations = 3;
+}
+
+message NewCustomList {
+  string name = 1;
+  repeated GeographicLocationConstraint locations = 2;
+}
+
+message CustomListSettings { repeated CustomList custom_lists = 1; }
+
+message Socks5Local {
+  string remote_ip = 1;
+  uint32 remote_port = 2;
+  TransportProtocol remote_transport_protocol = 3;
+  uint32 local_port = 4;
+}
+message SocksAuth {
+  string username = 1;
+  string password = 2;
+}
+message Socks5Remote {
+  string ip = 1;
+  uint32 port = 2;
+  SocksAuth auth = 3;
+}
+message Shadowsocks {
+  // A Shadowsocks cipher.
+  message Cipher { string name = 1; }
+  string ip = 1;
+  uint32 port = 2;
+  string password = 3;
+  Cipher cipher = 4;
+
+  // All supported Shadowsocks ciphers.
+  message Ciphers { repeated Cipher ciphers = 1; }
+}
+
+message CustomProxy {
+  oneof proxy_method {
+    Socks5Local socks5local = 1;
+    Socks5Remote socks5remote = 2;
+    Shadowsocks shadowsocks = 3;
+  }
+}
+
+message AccessMethod {
+  message Direct {}
+  message Bridges {}
+  message EncryptedDnsProxy {}
+  // message DomainFronting {}
+  oneof access_method {
+    Direct direct = 1;
+    Bridges bridges = 2;
+    EncryptedDnsProxy encrypted_dns_proxy = 3;
+    CustomProxy custom = 4;
+    // DomainFronting domain_fronting = 5;
+  }
+}
+
+message AccessMethodSetting {
+  UUID id = 1;
+  string name = 2;
+  bool enabled = 3;
+  AccessMethod access_method = 4;
+}
+
+message NewAccessMethodSetting {
+  string name = 1;
+  bool enabled = 2;
+  AccessMethod access_method = 3;
+}
+
+message ApiAccessMethodSettings {
+  AccessMethodSetting direct = 1;
+  AccessMethodSetting mullvad_bridges = 2;
+  AccessMethodSetting encrypted_dns_proxy = 3;
+  repeated AccessMethodSetting custom = 4;
+  // AccessMethodSetting domain_fronting = 5;
+}
+
+message Settings {
+  RelaySettings relay_settings = 1;
+  bool allow_lan = 3;
+  bool lockdown_mode = 4;
+  bool auto_connect = 5;
+  TunnelOptions tunnel_options = 6;
+  bool show_beta_releases = 7;
+  SplitTunnelSettings split_tunnel = 8;
+  ObfuscationSettings obfuscation_settings = 9;
+  CustomListSettings custom_lists = 10;
+  ApiAccessMethodSettings api_access_methods = 11;
+  repeated RelayOverride relay_overrides = 12;
+  optional Recents recents = 13;
+  bool update_default_location = 14;
+}
+
+message SettingsKeyList { repeated SettingsKey keys = 1; }
+
+enum SettingsKey {
+  RELAY_SETTINGS = 0;
+  ALLOW_LAN = 1;
+  LOCKDOWN_MODE_KEY = 2;
+  AUTO_CONNECT = 3;
+  TUNNEL_OPTIONS = 4;
+  SHOW_BETA_RELEASES = 5;
+  SPLIT_TUNNEL = 6;
+  OBFUSCATION_SETTINGS = 7;
+  CUSTOM_LISTS = 8;
+  API_ACCESS_METHODS = 9;
+  RELAY_OVERRIDES = 10;
+  RECENTS = 11;
+  UPDATE_DEFAULT_LOCATION = 12;
+}
+
+message RelayOverride {
+  string hostname = 1;
+  optional string ipv4_addr_in = 2;
+  optional string ipv6_addr_in = 3;
+}
+
+message Recents { repeated Recent recents = 1; }
+
+message MultihopRecent {
+  LocationConstraint entry = 1;
+  LocationConstraint exit = 2;
+}
+
+message Recent {
+  oneof type {
+    LocationConstraint singlehop = 1;
+    MultihopRecent multihop = 2;
+  }
+}
+
+message SplitTunnelSettings {
+  bool enable_exclusions = 1;
+  repeated string apps = 2;
+}
+
+message RelaySettings {
+  oneof endpoint {
+    CustomRelaySettings custom = 1;
+    NormalRelaySettings normal = 2;
+  }
+}
+
+message NormalRelaySettings {
+  LocationConstraint location = 1;
+  repeated string providers = 2;
+  WireguardConstraints wireguard_constraints = 4;
+  Ownership ownership = 5;
+}
+
+message TransportPort {
+  TransportProtocol protocol = 1;
+  optional uint32 port = 2;
+}
+
+enum IpVersion {
+  V4 = 0;
+  V6 = 1;
+}
+
+message WireguardConstraints {
+  optional IpVersion ip_version = 2;
+  repeated string allowed_ips = 3;
+  Multihop multihop = 4;
+  LocationConstraint entry_location = 5;
+  repeated string entry_providers = 6;
+  Ownership entry_ownership = 7;
+
+  enum Multihop {
+    Auto = 0;
+    Always = 1;
+    Never = 2;
+  }
+}
+
+message CustomRelaySettings {
+  string host = 1;
+  WireguardConfig config = 2;
+}
+
+message WireguardConfig {
+  message TunnelConfig {
+    bytes private_key = 1;
+    repeated string addresses = 2;
+  }
+  message PeerConfig {
+    bytes public_key = 1;
+    repeated string allowed_ips = 2;
+    string endpoint = 3;
+  }
+
+  TunnelConfig tunnel = 1;
+  PeerConfig peer = 2;
+  string ipv4_gateway = 3;
+  optional string ipv6_gateway = 4;
+}
+
+message QuantumResistantState {
+  enum State {
+    ON = 0;
+    OFF = 1;
+  }
+  State state = 1;
+}
+
+message DaitaSettings { bool enabled = 1; }
+
+message TunnelOptions {
+  optional uint32 mtu = 1;
+  google.protobuf.Duration rotation_interval = 2;
+  QuantumResistantState quantum_resistant = 3;
+  DaitaSettings daita = 4;
+
+  bool enable_ipv6 = 5;
+
+  DnsOptions dns_options = 6;
+  // Force userspace WireGuard.
+  // This option does not apply to Android or macOS.
+  bool userspace = 7;
+}
+
+message DefaultDnsOptions {
+  bool block_ads = 1;
+  bool block_trackers = 2;
+  bool block_malware = 3;
+  bool block_adult_content = 4;
+  bool block_gambling = 5;
+  bool block_social_media = 6;
+}
+
+message CustomDnsOptions { repeated string addresses = 1; }
+
+message DnsOptions {
+  enum DnsState {
+    DEFAULT = 0;
+    CUSTOM = 1;
+  }
+  DnsState state = 1;
+  DefaultDnsOptions default_options = 2;
+  CustomDnsOptions custom_options = 3;
+}
+
+message PublicKey {
+  bytes key = 1;
+  google.protobuf.Timestamp created = 2;
+}
+
+message ExcludedProcess {
+  uint32 pid = 1;
+  string image = 2;
+  bool inherited = 3;
+}
+
+message ExcludedProcessList { repeated ExcludedProcess processes = 1; }
+
+message SuggestedUpgrade {
+  string version = 1;
+  string changelog = 2;
+  optional string verified_installer_path = 3;
+}
+
+message AppVersionInfo {
+  bool supported = 1;
+  SuggestedUpgrade suggested_upgrade = 2;
+}
+
+message RelayListCountry {
+  string name = 1;
+  string code = 2;
+  repeated RelayListCity cities = 3;
+}
+
+message RelayListCity {
+  string name = 1;
+  string code = 2;
+  double latitude = 3;
+  double longitude = 4;
+  repeated Relay relays = 5;
+}
+
+message Relay {
+  message WireguardEndpoint {
+    message Quic {
+      string domain = 1;
+      string token = 2;
+      repeated string addr_in = 3;
+    }
+    bytes public_key = 1;
+    bool daita = 2;
+    Quic quic = 3;
+    repeated string shadowsocks_extra_addr_in = 4;
+    bool lwo = 5;
+  }
+
+  string hostname = 1;
+  string ipv4_addr_in = 2;
+  optional string ipv6_addr_in = 3;
+  bool include_in_country = 4;
+  bool active = 5;
+  bool owned = 6;
+  string provider = 7;
+  fixed64 weight = 8;
+  WireguardEndpoint endpoint_data = 9;
+  Location location = 10;
+}
+
+message Location {
+  string country = 1;
+  string country_code = 2;
+  string city = 3;
+  string city_code = 4;
+  double latitude = 5;
+  double longitude = 6;
+}
+
+enum TransportProtocol {
+  UDP = 0;
+  TCP = 1;
+}
+
+message DaemonEvent {
+  oneof event {
+    TunnelState tunnel_state = 1;
+    Settings settings = 2;
+    RelayList relay_list = 3;
+    AppVersionInfo version_info = 4;
+    DeviceEvent device = 5;
+    RemoveDeviceEvent remove_device = 6;
+    AccessMethodSetting new_access_method = 7;
+    LeakInfo leak_info = 8;
+  }
+}
+
+// List of VPN relays
+message RelayList {
+  repeated RelayListCountry countries = 1;
+  WireguardEndpointData endpoint_data = 2;
+}
+
+// List of bridge servers
+message BridgeList {
+  repeated Bridge bridges = 1;
+  BridgeEndpointData endpoint_data = 2;
+}
+
+message Bridge {
+  string hostname = 1;
+  string ipv4_addr_in = 2;
+  optional string ipv6_addr_in = 3;
+  bool active = 4;
+  fixed64 weight = 5;
+  Location location = 6;
+}
+
+// Shadowsocks endpoints reachable on all bridge servers
+message BridgeEndpointData { repeated ShadowsocksEndpointData shadowsocks = 1; }
+
+message ShadowsocksEndpointData {
+  uint32 port = 1;
+  string cipher = 2;
+  string password = 3;
+  TransportProtocol protocol = 4;
+}
+
+// Endpoints reachable on all WireGuard servers
+message WireguardEndpointData {
+  repeated PortRange port_ranges = 1;
+  string ipv4_gateway = 2;
+  string ipv6_gateway = 3;
+  repeated PortRange shadowsocks_port_ranges = 4;
+  repeated uint32 udp2tcp_ports = 5;
+}
+
+message PortRange {
+  uint32 first = 1;
+  uint32 last = 2;
+}
+
+message AccountAndDevice {
+  string account_number = 1;
+  Device device = 2;
+}
+
+message Device {
+  string id = 1;
+  string name = 2;
+  bytes pubkey = 3;
+  bool hijack_dns = 5;
+  google.protobuf.Timestamp created = 6;
+}
+
+message DeviceList { repeated Device devices = 1; }
+
+message DeviceRemoval {
+  string account_number = 1;
+  string device_id = 2;
+}
+
+message DeviceState {
+  enum State {
+    LOGGED_IN = 0;
+    LOGGED_OUT = 1;
+    REVOKED = 2;
+  }
+  State state = 1;
+  AccountAndDevice device = 2;
+}
+
+message DeviceEvent {
+  enum Cause {
+    LOGGED_IN = 0;
+    LOGGED_OUT = 1;
+    REVOKED = 2;
+    UPDATED = 3;
+    ROTATED_KEY = 4;
+  }
+  Cause cause = 1;
+  DeviceState new_state = 2;
+}
+
+message RemoveDeviceEvent {
+  string account_number = 1;
+  repeated Device new_device_list = 2;
+}
+
+/// Details about a potential leak that was detected in the connected state.
+message LeakInfo {
+  /// IPs that were reachable outside of the tunnel.
+  ///
+  /// Format: A list of IPv4 and IPv6 addresses. Possibly intermingled.
+  repeated string ip_addrs = 1;
+  /// The interface which was able to reach the IPs `ip_addrs`.
+  ///
+  /// Format: The name of the leaky interface.
+  string interface = 2;
+}
+
+message PlayExternalObfuscatedAccountId { string id = 1; }
+
+message PlayPurchase {
+  string product_id = 1;
+  PlayPurchasePaymentToken purchase_token = 2;
+}
+
+message PlayPurchasePaymentToken { string token = 1; }
+
+message AllowedIpsList { repeated string values = 1; }
+
+message LogFilter { string log_filter = 1; }
+
+message LogMessage { string message = 1; }
+
+// The great multihop migration of 2026
+//
+// The migration has to consider the following scenarios:
+//
+// | Scenario | Multihop | DAITA | Direct Only | Magic Multihop | Filters |
+// |----------|----------|-------|-------------|----------------|---------|
+// |    1A    |    ❌    |   ❌  |      ❔     |       ❔       |    ❌   |
+// |    1B    |    ❌    |   ❌  |      ❔     |       ❔       |    ✅   |
+// |    2     |    ❌    |   ✅  |      ❌     |       ❔       |    ❌   |
+// |    3A    |    ❌    |   ✅  |      ❌     |       ❌       |    ✅   |
+// |    3A    |    ❌    |   ✅  |      ❌     |       ✅       |    ✅   |
+// |    4A    |    ❌    |   ✅  |      ✅     |       ❔       |    ❌   |
+// |    4B    |    ❌    |   ✅  |      ✅     |       ❔       |    ✅   |
+// |    5A    |    ✅    |   ❌  |      ❔     |       ❔       |    ❌   |
+// |    5B    |    ✅    |   ❌  |      ❔     |       ❔       |    ✅   |
+// |    6A    |    ✅    |   ✅  |      ❌     |       ❔       |    ❌   |
+// |    6B    |    ✅    |   ✅  |      ❌     |       ❔       |    ✅   |
+// |    7A    |    ✅    |   ✅  |      ✅     |       ❔       |    ❌   |
+// |    7B    |    ✅    |   ✅  |      ✅     |       ❔       |    ✅   |
+//
+// The legends have the following meaning:
+// - ✅ : The setting was enabled.
+// - ❌ : The setting was disabled.
+// - ❔ : The setting did not contribute to detecting which migration to run ("Scenario").
+//
+// Clarification of some settings:
+// - Direct only: DAITA specific setting which prevented Magic Multihop from taking effect.
+// - Magic Multihop: If DAITA was enabled but Direct only was disabled, the relay selector might
+//  have chosen an entry relay automatically. If that was the case, Magic Multihop was enabled.
+// - Filters: If any ownership or provider filter was enabled, the Filters box is ticked with ✅.
+//
+// # Notes on updated settings post-migration.
+//
+// * In the same update as the SplitFilterMigration is run, the Multihop setting transitions from
+//  being a boolean state (on/off) to now being a tri-state:
+//
+// - Always
+// - When needed
+// - Never
+//
+// * If any filters were previously set, they were copied and applied as both entry + exit filters.
+//
+// * "Daita: Direct only" does not exist anymore. If Daita was turned off, it is still off.
+//  Otherwise Daita is enabled.
+message SplitFilterMigration {
+  enum Scenario {
+    // 1A
+    OneA = 0;
+    // 1B
+    OneB = 1;
+    // 2
+    Two = 2;
+    // 3A
+    ThreeA = 3;
+    // 3B
+    ThreeB = 4;
+    // 4A
+    FourA = 5;
+    // 4B
+    FourB = 6;
+    // 5A
+    FiveA = 7;
+    // 5B
+    FiveB = 8;
+    // 6A
+    SixA = 9;
+    // 6B
+    SixB = 10;
+    // 7A
+    SevenA = 11;
+    // 7B
+    SevenB = 12;
+  }
+
+  optional Scenario scenario = 1;
+}

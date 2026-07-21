@@ -1,0 +1,15 @@
+pkgbase = mullvad-gtk
+	pkgdesc = Native GTK4 frontend for the Mullvad VPN daemon
+	pkgver = 0.1.0_alpha.1
+	pkgrel = 1
+	url = https://github.com/Greenstorm5417/Mullvad-GTK
+	arch = x86_64
+	arch = aarch64
+	license = GPL-3.0-or-later
+	makedepends = cargo
+	makedepends = rust
+	depends = gtk4
+	source = mullvad-gtk-0.1.0_alpha.1.tar.gz::https://github.com/Greenstorm5417/Mullvad-GTK/archive/refs/tags/v0.1.0-alpha.1.tar.gz
+	sha256sums = SKIP
+
+pkgname = mullvad-gtk

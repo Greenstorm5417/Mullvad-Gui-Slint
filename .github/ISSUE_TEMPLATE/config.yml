@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Mullvad VPN support
+    url: https://mullvad.net/help
+    about: Use official Mullvad support for VPN service, billing, and account issues.
+  - name: Mullvad-GTK discussions
+    url: https://github.com/Greenstorm5417/Mullvad-GTK/discussions
+    about: Ask questions about this independent GTK frontend.

@@ -1,0 +1,15 @@
+/target
+/dist
+/result
+/result-*
+*.AppImage
+*.deb
+*.rpm
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example

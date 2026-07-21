@@ -1,0 +1,26 @@
+pkgname=mullvad-gtk
+pkgver=0.1.0_alpha.1
+pkgrel=1
+pkgdesc='Native GTK4 frontend for the Mullvad VPN daemon'
+arch=('x86_64' 'aarch64')
+url='https://github.com/Greenstorm5417/Mullvad-GTK'
+license=('GPL-3.0-or-later')
+depends=('gtk4')
+makedepends=('cargo' 'rust')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v${pkgver/_/-}.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "Mullvad-GTK-${pkgver/_/-}"
+  cargo build --locked --release
+}
+
+check() {
+  cd "Mullvad-GTK-${pkgver/_/-}"
+  cargo test --locked --all-features
+}
+
+package() {
+  cd "Mullvad-GTK-${pkgver/_/-}"
+  DESTDIR="$pkgdir" PREFIX=/usr ./scripts/stage-linux.sh
+}

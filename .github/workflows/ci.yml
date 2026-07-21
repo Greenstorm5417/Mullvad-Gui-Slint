@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CI_IMAGE: mullvad-gtk-ci
+
+jobs:
+  checks:
+    name: Format, test, and lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build clean CI image
+        run: docker build --file docker/ci.Dockerfile --tag "$CI_IMAGE" .
+      - name: Check formatting
+        run: docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" cargo fmt --all --check
+      - name: Run daemon-independent tests
+        run: docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" cargo test --locked --no-default-features
+      - name: Run complete test suite
+        run: docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" cargo test --locked --all-features
+      - name: Run Clippy with warnings denied
+        run: docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" cargo clippy --locked --all-targets --all-features -- -D warnings
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native CI image
+        run: docker build --file docker/ci.Dockerfile --tag "$CI_IMAGE" .
+      - name: Check and build release binary
+        run: |
+          docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" \
+            bash -c 'cargo check --locked --all-targets --all-features && cargo build --locked --release'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mullvad-gtk-linux-${{ matrix.arch }}
+          path: target/release/mullvad-gtk
+          if-no-files-found: error
+
+  nix:
+    name: Nix ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build flake inside Nix container
+        run: |
+          docker run --rm --volume "$PWD:/workspace" --workdir /workspace nixos/nix:2.31.2 \
+            nix --extra-experimental-features 'nix-command flakes' \
+            build --no-write-lock-file --print-build-logs

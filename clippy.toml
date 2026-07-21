@@ -1,0 +1,4 @@
+# The generated Mullvad DaemonEvent protobuf enum is intentionally large.
+enum-variant-size-threshold = 1000
+too-many-arguments-threshold = 7
+type-complexity-threshold = 250

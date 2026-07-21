@@ -1,0 +1,109 @@
+name: Release packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix
+        required: true
+        default: 0.1.0-alpha.1
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CI_IMAGE: mullvad-gtk-ci
+
+jobs:
+  packages:
+    name: Packages ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          version="${REQUESTED_VERSION:-${GITHUB_REF_NAME#v}}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build clean packaging image
+        run: docker build --file docker/ci.Dockerfile --tag "$CI_IMAGE" .
+      - name: Test and build packages
+        run: |
+          docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" bash -c \
+            "cargo test --locked --all-features && \
+             cargo build --locked --release && \
+             ./scripts/package-linux.sh '${{ steps.version.outputs.version }}' '${{ matrix.arch }}' && \
+             ./scripts/package-appimage.sh '${{ steps.version.outputs.version }}' '${{ matrix.arch }}'"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  aur:
+    name: AUR source package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          version="${REQUESTED_VERSION:-${GITHUB_REF_NAME#v}}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Create AUR recipe inside Arch container
+        run: |
+          docker run --rm --volume "$PWD:/workspace" --workdir /workspace archlinux:base-devel \
+            ./scripts/package-aur.sh '${{ steps.version.outputs.version }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aur-package
+          path: dist/mullvad-gtk-aur-*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    needs: [packages, aur]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Resolve tag
+        id: tag
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ -n "$REQUESTED_VERSION" ]]; then
+            echo "tag=v$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create release and upload packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          prerelease=()
+          [[ "$TAG" == *-* ]] && prerelease=(--prerelease)
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --generate-notes "${prerelease[@]}" --title "Mullvad-GTK $TAG"
+          find dist -type f -exec gh release upload "$TAG" --clobber {} +
