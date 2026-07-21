@@ -21,17 +21,53 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-      - name: Build clean CI image
-        run: docker build --file docker/ci.Dockerfile --tag "$CI_IMAGE" .
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build cached CI image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/ci.Dockerfile
+          tags: ${{ env.CI_IMAGE }}
+          load: true
+          cache-from: type=gha,scope=ci-${{ runner.arch }}
+          cache-to: type=gha,mode=max,scope=ci-${{ runner.arch }}
+      - name: Restore Rust cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            .ci-cache/cargo
+            target
+            !target/package-root
+            !target/rpmbuild
+          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('Cargo.lock', 'docker/ci.Dockerfile') }}
+          restore-keys: |
+            rust-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-
+            rust-${{ runner.os }}-${{ runner.arch }}-
       - name: Check formatting
-        run: docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" cargo fmt --all --check
+        run: |
+          docker run --rm --volume "$PWD:/workspace" \
+            --volume "$PWD/.ci-cache/cargo/registry:/usr/local/cargo/registry" \
+            --volume "$PWD/.ci-cache/cargo/git:/usr/local/cargo/git" \
+            "$CI_IMAGE" cargo fmt --all --check
       - name: Run daemon-independent tests
-        run: docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" cargo test --locked --no-default-features
+        run: |
+          docker run --rm --volume "$PWD:/workspace" \
+            --volume "$PWD/.ci-cache/cargo/registry:/usr/local/cargo/registry" \
+            --volume "$PWD/.ci-cache/cargo/git:/usr/local/cargo/git" \
+            "$CI_IMAGE" cargo test --locked --no-default-features
       - name: Run complete test suite
-        run: docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" cargo test --locked --all-features
+        run: |
+          docker run --rm --volume "$PWD:/workspace" \
+            --volume "$PWD/.ci-cache/cargo/registry:/usr/local/cargo/registry" \
+            --volume "$PWD/.ci-cache/cargo/git:/usr/local/cargo/git" \
+            "$CI_IMAGE" cargo test --locked --all-features
       - name: Run Clippy with warnings denied
-        run: docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" cargo clippy --locked --all-targets --all-features -- -D warnings
+        run: |
+          docker run --rm --volume "$PWD:/workspace" \
+            --volume "$PWD/.ci-cache/cargo/registry:/usr/local/cargo/registry" \
+            --volume "$PWD/.ci-cache/cargo/git:/usr/local/cargo/git" \
+            "$CI_IMAGE" cargo clippy --locked --all-targets --all-features -- -D warnings
 
   linux:
     name: Linux ${{ matrix.arch }}
@@ -46,19 +82,40 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - name: Build native CI image
-        run: docker build --file docker/ci.Dockerfile --tag "$CI_IMAGE" .
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build cached native CI image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/ci.Dockerfile
+          tags: ${{ env.CI_IMAGE }}
+          load: true
+          cache-from: type=gha,scope=ci-${{ runner.arch }}
+          cache-to: type=gha,mode=max,scope=ci-${{ runner.arch }}
+      - name: Restore Rust cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            .ci-cache/cargo
+            target
+            !target/package-root
+            !target/rpmbuild
+          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('Cargo.lock', 'docker/ci.Dockerfile') }}
+          restore-keys: |
+            rust-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-
+            rust-${{ runner.os }}-${{ runner.arch }}-
       - name: Check and build release binary
         run: |
-          docker run --rm --volume "$PWD:/workspace" "$CI_IMAGE" \
-            bash -c 'cargo check --locked --all-targets --all-features && \
-              cargo build --locked --release && \
+          docker run --rm --volume "$PWD:/workspace" \
+            --volume "$PWD/.ci-cache/cargo/registry:/usr/local/cargo/registry" \
+            --volume "$PWD/.ci-cache/cargo/git:/usr/local/cargo/git" \
+            "$CI_IMAGE" bash -c 'cargo build --locked --release && \
               desktop-file-validate packaging/mullvad-gui-slint.desktop && \
               ./scripts/package-linux.sh 0.1.0-ci ${{ matrix.arch }} && \
               dpkg-deb --info dist/mullvad-gui-slint_0.1.0-ci_*.deb >/dev/null && \
               rpm -qpl dist/*.rpm >/dev/null'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mullvad-gui-slint-linux-${{ matrix.arch }}
           path: |
@@ -81,7 +138,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build flake inside Nix container
         run: |
           docker run --rm --volume "$PWD:/workspace" --workdir /workspace nixos/nix:2.31.2 \

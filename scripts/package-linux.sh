@@ -3,7 +3,7 @@ set -euo pipefail
 
 version="${1:?usage: package-linux.sh VERSION ARCH}"
 architecture="${2:?usage: package-linux.sh VERSION ARCH}"
-deb_version="${version/-/~}"
+deb_version="${version/-/\~}"
 rpm_version="${version//-/.}"
 case "$architecture" in
   x86_64)
