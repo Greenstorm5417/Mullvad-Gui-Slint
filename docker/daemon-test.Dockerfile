@@ -6,6 +6,7 @@ RUN apt-get update \
         curl \
         gnupg \
         iproute2 \
+        libdbus-1-3 \
         procps \
     && rm -rf /var/lib/apt/lists/*
 
