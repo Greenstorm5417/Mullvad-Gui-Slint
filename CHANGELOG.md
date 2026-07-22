@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-beta.1 - 2026-07-22
+
+- Fixed daemon-compatibility CI: the isolated test image now stubs `systemctl`
+  and ships `libdbus-1-3` so the `mullvad-vpn` package installs and the daemon
+  starts cleanly during the daily compatibility check.
+
 ## 0.1.0-alpha.1 - 2026-07-20
 
 - Initial native Slint application shell and direct Mullvad daemon gRPC client.

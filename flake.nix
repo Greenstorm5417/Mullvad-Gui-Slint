@@ -13,7 +13,7 @@
         in {
           default = pkgs.rustPlatform.buildRustPackage {
             pname = "mullvad-gui-slint";
-            version = "0.1.0-alpha.1";
+            version = "0.1.0-beta.1";
             src = self;
 
             cargoLock.lockFile = ./Cargo.lock;

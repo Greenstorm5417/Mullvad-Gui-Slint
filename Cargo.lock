@@ -2917,7 +2917,7 @@ dependencies = [
 
 [[package]]
 name = "mullvad-gui-slint"
-version = "0.1.0-alpha.1"
+version = "0.1.0-beta.1"
 dependencies = [
  "arboard",
  "async-channel",
