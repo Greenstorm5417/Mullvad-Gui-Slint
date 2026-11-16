@@ -1,4 +1,4 @@
-FROM rust:1.98-bookworm
+FROM rust:1.100-bookworm
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
